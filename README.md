@@ -59,6 +59,7 @@ shared schema) and set the report params; the PDF preview refreshes as you type.
 - **Click a problem to jump** to it: JSON syntax errors, schema and reference errors, and server-side dataset errors all select the offending spot in the editor.
 - **Format** pretty-prints the JSON; **Ctrl+S** saves to `report_definitions` (row-level security applies).
 - An unsaved draft is kept in the browser across reloads.
+- The sun / moon / monitor switch picks light, dark or follow-the-OS theme (Monaco follows too). The choice is remembered, and an inline script in `index.html` applies it before first paint so there is no flash.
 
 The service must allow the editor's origin (`CORS_ORIGINS`, default `http://localhost:5173`) and
 `ALLOW_INLINE_DEFINITION=true` for unsaved previews and the Data tab.

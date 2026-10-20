@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./supabase.ts";
+import { ThemeToggle } from "./ThemeToggle.tsx";
 
 export function Login() {
   const [email, setEmail] = useState("");
@@ -16,6 +17,8 @@ export function Login() {
   }
 
   return (
+    <>
+    <div className="login-theme"><ThemeToggle /></div>
     <form className="login" onSubmit={(e) => (e.preventDefault(), submit("in"))}>
       <h1>Report editor</h1>
       <label>
@@ -32,5 +35,6 @@ export function Login() {
         <button type="button" className="secondary" disabled={busy} onClick={() => submit("up")}>Create account</button>
       </div>
     </form>
+    </>
   );
 }

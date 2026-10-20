@@ -8,6 +8,8 @@ import { Login } from "./Login.tsx";
 import { check } from "./check.ts";
 import { locateProblem } from "./locate.ts";
 import { setCompletionDatasets } from "./monaco.ts";
+import { ThemeToggle } from "./ThemeToggle.tsx";
+import { useTheme } from "./ThemeProvider.tsx";
 import { ProblemList } from "./ProblemList.tsx";
 import type { Problem } from "./problems.ts";
 import { fetchData, renderPdf, RenderError, type DatasetInfo, type RenderResult } from "./render.ts";
@@ -40,6 +42,7 @@ export function App() {
 }
 
 function Workspace({ session }: { session: Session }) {
+  const { resolved: theme } = useTheme();
   const [text, setText] = useState(() => loadDraft() ?? exampleJson);
   const [tab, setTab] = useState<"preview" | "data">("preview");
   const [data, setData] = useState<DatasetInfo[] | null>(null);
@@ -229,6 +232,7 @@ function Workspace({ session }: { session: Session }) {
         <button className="secondary" onClick={() => editorRef.current?.getAction("editor.action.formatDocument")?.run()}>Format</button>
         <span className="spacer" />
         {note && <span className="note">{note}</span>}
+        <ThemeToggle />
         <span className="note">{session.user.email}</span>
         <button className="secondary" onClick={() => supabase.auth.signOut()}>Sign out</button>
       </header>
@@ -266,7 +270,7 @@ function Workspace({ session }: { session: Session }) {
               ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => saveRef.current());
             }}
             options={{ quickSuggestions: { strings: true, other: true, comments: false }, minimap: { enabled: false }, fontSize: 13, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true }}
-            theme="vs-dark"
+            theme={theme === "dark" ? "vs-dark" : "vs"}
           />
           {problems.length > 0 && (
             <div className="problems">
