@@ -22,5 +22,12 @@ const app = createApp({
 });
 
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port });
+const server = serve({ fetch: app.fetch, port });
 console.log(`render-service listening on :${port}`);
+
+// Platforms send SIGTERM when scaling in or deploying: stop taking requests, let in-flight renders finish.
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, draining");
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), Number(process.env.SHUTDOWN_GRACE_MS ?? 9_000)).unref();
+});

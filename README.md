@@ -10,7 +10,8 @@ apps/web                 Dev editor: React + Vite+, Monaco with the JSON Schema,
 apps/render-service      Hono service: JWT passthrough (RLS), RPC fetch, native `typst compile`
 supabase/migrations      report_definitions table (RLS), demo sales table, report_sales_by_region RPC
 examples/                sample definition
-docs/                    spike notes (why a container, not an Edge Function)
+deploy/                  Cloud Run deploy script
+docs/                    spike notes (why a container) and deploy guide (docs/deploy.md)
 ```
 
 Rules: data sources are Postgres RPCs named `report_*` that return a deterministic order

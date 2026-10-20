@@ -1,5 +1,7 @@
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
+import { logger } from "hono/logger";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateTypst } from "@raseport/render-core";
 import { DefinitionError, parseDefinition, ZodError, type DatasetRows, type ParamValues, type ParsedReport } from "@raseport/schema";
@@ -9,6 +11,7 @@ import { BadRequest, resolveParams } from "./params.ts";
 import { TypstError } from "./typst-runner.ts";
 
 const SAMPLE_ROWS = 25;
+export const MAX_BODY_BYTES = 1024 * 1024;
 
 export interface AppDeps {
   /** Client acting as the caller, so RLS applies. */
@@ -32,6 +35,11 @@ export function createApp(deps: AppDeps) {
   const app = new Hono();
   // Auth is a bearer token (no cookies), so an origin allow-list is enough.
   app.use("*", cors({ origin: deps.corsOrigins, allowHeaders: ["authorization", "content-type"], allowMethods: ["POST", "GET", "OPTIONS"], exposeHeaders: ["x-render-ms"] }));
+
+  // One line per request (method, path, status, time); the logger never prints headers or bodies.
+  app.use("*", logger());
+  // Definitions are small JSON; a hard cap keeps one request from tying up memory.
+  app.use("*", bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (c) => c.json({ error: "Request body too large" }, 413) }));
 
   app.get("/healthz", (c) => c.text("ok"));
 

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import { createApp } from "../src/app.ts";
+import { createApp, MAX_BODY_BYTES } from "../src/app.ts";
 
 const fakeClient = { auth: { getUser: async () => ({ data: { user: { id: "u" } }, error: null }) } } as unknown as SupabaseClient;
 const app = createApp({
@@ -45,6 +45,11 @@ describe("error responses", () => {
     const res = await post("/data", def);
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ nodeId: "d1" });
+  });
+
+  it("rejects oversized bodies with 413", async () => {
+    const res = await post("/render", { ...base, name: "x".repeat(MAX_BODY_BYTES) });
+    expect(res.status).toBe(413);
   });
 
   it("renders a valid definition", async () => {
