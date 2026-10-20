@@ -5,7 +5,7 @@ import exampleJson from "../../../examples/sales-report.json?raw";
 import { DataPanel } from "./DataPanel.tsx";
 import { INSERT_LABELS, insertItem, type InsertKind } from "./insert.ts";
 import { Login } from "./Login.tsx";
-import { check } from "./check.ts";
+import { check, lenientParams } from "./check.ts";
 import { locateProblem } from "./locate.ts";
 import { setCompletionDatasets } from "./monaco.ts";
 import { ThemeToggle } from "./ThemeToggle.tsx";
@@ -63,15 +63,17 @@ function Workspace({ session }: { session: Session }) {
   const lastUrl = useRef<string | null>(null);
 
   const { def, problems } = useMemo(() => check(text), [text]);
+  // The params form must keep working while the definition has errors elsewhere.
+  const paramInputs = useMemo(() => def?.params ?? lenientParams(text), [def, text]);
 
   // Fill in declared defaults for params the user has not touched.
   const effectiveParams = useMemo(() => {
     const out: Record<string, unknown> = {};
-    for (const p of def?.params ?? []) out[p.name] = params[p.name] ?? p.default ?? "";
+    for (const p of paramInputs) out[p.name] = params[p.name] ?? p.default ?? "";
     return out;
-  }, [def, params]);
+  }, [paramInputs, params]);
 
-  const missing = useMemo(() => (def?.params ?? []).filter((p) => p.required && (effectiveParams[p.name] === "" || effectiveParams[p.name] === undefined)).map((p) => p.name), [def, effectiveParams]);
+  const missing = useMemo(() => paramInputs.filter((p) => p.required && (effectiveParams[p.name] === "" || effectiveParams[p.name] === undefined)).map((p) => p.name), [paramInputs, effectiveParams]);
 
   const render = useCallback(async () => {
     if (!def || missing.length) return;
@@ -238,7 +240,7 @@ function Workspace({ session }: { session: Session }) {
       </header>
 
       <div className="toolbar">
-        {(def?.params ?? []).map((p) => (
+        {paramInputs.map((p) => (
           <label key={p.name}>
             {p.name}
             {p.type === "bool" ? (
@@ -253,6 +255,7 @@ function Workspace({ session }: { session: Session }) {
           </label>
         ))}
         <span className="spacer" />
+        {problems.length > 0 && <span className="note warn">Preview paused: {problems.length} problem{problems.length > 1 ? "s" : ""} in the JSON</span>}
         <label className="inline"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Live preview</label>
         <button onClick={render} disabled={!def || missing.length > 0 || status === "rendering"}>{status === "rendering" ? "Rendering…" : "Render"}</button>
         {result && <span className="note">{result.ms ?? "?"} ms · {(result.bytes / 1024).toFixed(0)} KB</span>}

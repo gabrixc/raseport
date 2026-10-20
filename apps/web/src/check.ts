@@ -29,3 +29,35 @@ export function check(text: string): CheckResult {
     return { def: null, problems: [{ message: (e as Error).message }] };
   }
 }
+
+export interface ParamInput {
+  name: string;
+  type: "text" | "number" | "date" | "bool";
+  required: boolean;
+  default?: string | number | boolean;
+}
+
+const PARAM_TYPES = new Set(["text", "number", "date", "bool"]);
+
+/**
+ * Params read straight from the JSON, ignoring validation errors elsewhere. The params form uses this
+ * when the definition does not validate, so you can still set values while you fix the problem.
+ */
+export function lenientParams(text: string): ParamInput[] {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const list = (json as { params?: unknown } | null)?.params;
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((p: unknown): ParamInput[] => {
+    if (!p || typeof p !== "object") return [];
+    const { name, type, required, default: dflt } = p as Record<string, unknown>;
+    if (typeof name !== "string" || name === "") return [];
+    const input: ParamInput = { name, type: PARAM_TYPES.has(type as string) ? (type as ParamInput["type"]) : "text", required: required === true };
+    if (typeof dflt === "string" || typeof dflt === "number" || typeof dflt === "boolean") input.default = dflt;
+    return [input];
+  });
+}

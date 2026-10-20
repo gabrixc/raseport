@@ -57,3 +57,4 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-
 .theme-toggle button:not([aria-checked="true"]):hover { opacity: 1; }
 .theme-toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .login-theme { position: fixed; top: 12px; right: 12px; }
+.note.warn { color: var(--err); }
