@@ -73,6 +73,29 @@ const KpiBlock = z.object({
   format: Format.default("text"),
 });
 
+const ChartSeries = z.object({
+  field: z.string(),
+  label: z.string().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+});
+
+const ChartBlock = z.object({
+  type: z.literal("chart"),
+  id: z.string(),
+  kind: z.enum(["bar", "line"]),
+  dataset: z.string(),
+  title: z.string().optional(),
+  /** category axis field (dotted path allowed) */
+  x: z.string(),
+  series: z.array(ChartSeries).min(1).max(6),
+  /** when set, rows are grouped by x and each series is aggregated with this function */
+  aggregate: AggFn.optional(),
+  /** value-axis number format */
+  format: Format.default("decimal"),
+  /** chart height in SVG units; width is fixed at 640 and scales to the cell */
+  height: z.number().int().min(120).max(600).default(260),
+});
+
 const DividerBlock = z.object({ type: z.literal("divider"), id: z.string() });
 const SpacerBlock = z.object({ type: z.literal("spacer"), id: z.string(), height: z.string().default("12pt") });
 const PageBreakBlock = z.object({ type: z.literal("pageBreak"), id: z.string() });
@@ -81,6 +104,7 @@ export const Block = z.discriminatedUnion("type", [
   TextBlock,
   TableBlock,
   KpiBlock,
+  ChartBlock,
   DividerBlock,
   SpacerBlock,
   PageBreakBlock,
@@ -192,6 +216,7 @@ export function assertReferences(def: ParsedReport): void {
       for (const b of cell.blocks) {
         if (b.type === "text") b.value.forEach((p) => checkPart(`block ${b.id}`, p));
         if (b.type === "kpi") checkPart(`block ${b.id}`, b.value);
+        if (b.type === "chart" && !ds.has(b.dataset)) errors.push(`block ${b.id}: unknown dataset "${b.dataset}"`);
         if (b.type === "table") {
           if (!ds.has(b.dataset)) errors.push(`block ${b.id}: unknown dataset "${b.dataset}"`);
           if (b.groupSubtotals && !b.groupBy) errors.push(`block ${b.id}: groupSubtotals needs groupBy`);

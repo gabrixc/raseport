@@ -67,3 +67,28 @@ describe("generateTypst", () => {
     expect(readFileSync(join(dir, "out.pdf")).subarray(0, 5).toString()).toBe("%PDF-");
   });
 });
+
+describe("charts", () => {
+  const def = parseDefinition(example);
+  it("embeds an escaped SVG with aggregated bars", () => {
+    const src = generateTypst(def, { sales: rows }, { month: "m" });
+    expect(src).toContain('image(bytes("<svg');
+    expect(src).toContain("Revenue by region");
+    expect(src).toContain("North");
+  });
+
+  it("escapes XML in labels and categories", () => {
+    const evil = rows.map((r) => ({ ...r, region: '<script>"x"</script>' }));
+    const src = generateTypst(def, { sales: evil }, { month: "m" });
+    const svgs = [...src.matchAll(/image\(bytes\("((?:[^"\\]|\\.)*)"\)/g)].map((m) => m[1]!);
+    expect(svgs.length).toBe(2);
+    for (const svg of svgs) expect(svg).not.toContain("<script>");
+    expect(svgs[0]).toContain("&lt;script&gt;");
+  });
+
+  it("computes nice ticks", async () => {
+    const { niceTicks } = await import("../src/chart.ts");
+    expect(niceTicks(1234)).toEqual([0, 250, 500, 750, 1000, 1250]);
+    expect(niceTicks(0)).toEqual([0, 1]);
+  });
+});

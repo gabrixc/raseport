@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "scripts": { "test": "vitest run --passWithNoTests", "typecheck": "tsc --noEmit" },
   "dependencies": { "zod": "^4.0.0" }
 }

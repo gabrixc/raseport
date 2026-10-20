@@ -1,4 +1,5 @@
 import type { Block, Column, DatasetRows, ParamValues, ParsedReport, Part, Row as LayoutRow, TableBlock } from "@raseport/schema";
+import { chartSvg } from "./chart.ts";
 import { color, font, length, str } from "./typst.ts";
 import { aggregate, formatAuto, formatValue, getPath, type FormatEnv, type Row } from "./values.ts";
 
@@ -56,14 +57,14 @@ function rowsExpr(ctx: Ctx, rows: LayoutRow[]): string {
 
 function rowExpr(ctx: Ctx, row: LayoutRow): string {
   const cols = row.cells.map((c) => `${c.span}fr`).join(", ");
-  const cells = row.cells.map((c) => `stack(dir: ttb, spacing: 6pt, ${c.blocks.filter((b) => b.type !== "pageBreak").map((b) => blockExpr(ctx, b)).join(", ")})`);
+  const cells = row.cells.map((c) => `stack(dir: ttb, spacing: 6pt, ${c.blocks.filter((b) => b.type !== "pageBreak").map((b) => blockExpr(ctx, b, c.span)).join(", ")})`);
   const trailing = row.cells.length === 1 ? "," : "";
   return `grid(columns: (${cols}${trailing}), column-gutter: 12pt, ${cells.join(", ")})`;
 }
 
 // ---- blocks -----------------------------------------------------------------
 
-function blockExpr(ctx: Ctx, b: Block): string {
+function blockExpr(ctx: Ctx, b: Block, span = 12): string {
   switch (b.type) {
     case "text": {
       const style = {
@@ -84,6 +85,10 @@ function blockExpr(ctx: Ctx, b: Block): string {
         `block(width: 100%, inset: 10pt, radius: 4pt, fill: luma(245), stack(dir: ttb, spacing: 4pt, ` +
         `text(size: 0.8em, fill: luma(110), ${str(b.label)}), text(size: 1.8em, weight: "bold", fill: ${color(ctx.def.theme.accent)}, ${str(shown)})))`
       );
+    }
+    case "chart": {
+      const svg = chartSvg(ctx.data[b.dataset] ?? [], b, ctx.env, ctx.def.theme.font, span);
+      return `image(bytes(${str(svg)}), format: "svg", width: 100%)`;
     }
     case "divider":
       return `line(length: 100%, stroke: 0.5pt + luma(180))`;
