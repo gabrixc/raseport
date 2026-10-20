@@ -1,11 +1,14 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateTypst } from "@raseport/render-core";
-import { parseDefinition, ZodError } from "@raseport/schema";
+import { parseDefinition, ZodError, type DatasetRows, type ParamValues, type ParsedReport } from "@raseport/schema";
 import { fetchDatasets } from "./data.ts";
+import { describeRows } from "./describe.ts";
 import { BadRequest, resolveParams } from "./params.ts";
 import { TypstError } from "./typst-runner.ts";
+
+const SAMPLE_ROWS = 25;
 
 export interface AppDeps {
   /** Client acting as the caller, so RLS applies. */
@@ -32,7 +35,8 @@ export function createApp(deps: AppDeps) {
 
   app.get("/healthz", (c) => c.text("ok"));
 
-  app.post("/render", async (c) => {
+  /** Auth, load the definition (stored or inline), resolve params and fetch datasets, then hand off. */
+  async function withReport(c: Context, run: (ctx: { def: ParsedReport; params: ParamValues; data: DatasetRows }) => Promise<Response>): Promise<Response> {
     const token = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
     if (!token) return c.json({ error: "Missing bearer token" }, 401);
     const client = deps.clientFor(token);
@@ -56,12 +60,7 @@ export function createApp(deps: AppDeps) {
       const def = parseDefinition(raw);
       const params = resolveParams(def, body.params);
       const data = await fetchDatasets(client, def, params);
-      const t0 = Date.now();
-      const pdf = await deps.compile(generateTypst(def, data, params));
-      return new Response(new Uint8Array(pdf), {
-        headers: {
-          "x-render-ms": String(Date.now() - t0), "content-type": "application/pdf", "content-disposition": `inline; filename="${def.name.replace(/[^\w.-]+/g, "_")}.pdf"` },
-      });
+      return await run({ def, params, data });
     } catch (e) {
       if (e instanceof BadRequest) return c.json({ error: e.message }, 400);
       if (e instanceof ZodError) return c.json({ error: "Invalid report definition", issues: e.issues }, 422);
@@ -70,7 +69,33 @@ export function createApp(deps: AppDeps) {
       console.error(e);
       return c.json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
     }
-  });
+  }
+
+  app.post("/render", (c) =>
+    withReport(c, async ({ def, params, data }) => {
+      const t0 = Date.now();
+      const pdf = await deps.compile(generateTypst(def, data, params));
+      return new Response(new Uint8Array(pdf), {
+        headers: {
+          "x-render-ms": String(Date.now() - t0),
+          "content-type": "application/pdf",
+          "content-disposition": `inline; filename="${def.name.replace(/[^\w.-]+/g, "_")}.pdf"`,
+        },
+      });
+    }),
+  );
+
+  /** Sample rows and addressable columns per dataset, so authors can see real field paths. */
+  app.post("/data", (c) =>
+    withReport(c, async ({ def, data }) =>
+      c.json({
+        datasets: def.datasets.map((ds) => {
+          const rows = data[ds.id] ?? [];
+          return { id: ds.id, total: rows.length, columns: describeRows(rows), sample: rows.slice(0, SAMPLE_ROWS) };
+        }),
+      }),
+    ),
+  );
 
   return app;
 }

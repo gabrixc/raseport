@@ -34,3 +34,22 @@ export async function renderPdf(
   const blob = await res.blob();
   return { url: URL.createObjectURL(blob), ms: Number(res.headers.get("x-render-ms")) || null, bytes: blob.size };
 }
+
+export interface DatasetInfo {
+  id: string;
+  total: number;
+  columns: { path: string; type: string; example: unknown }[];
+  sample: Record<string, unknown>[];
+}
+
+export async function fetchData(body: { definition: unknown; params: Record<string, unknown> }, token: string, signal: AbortSignal): Promise<DatasetInfo[]> {
+  const res = await fetch(`${RENDER_URL}/data`, {
+    method: "POST",
+    signal,
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json().catch(() => ({}))) as { datasets?: DatasetInfo[]; error?: string };
+  if (!res.ok) throw new RenderError(json.error ?? `Data request failed (${res.status})`);
+  return json.datasets ?? [];
+}

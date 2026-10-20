@@ -32,13 +32,28 @@ docker run --network host -e SUPABASE_URL=http://127.0.0.1:55321 \
 
 ## Dev editor
 
+Run these from the repo root, with the local Supabase stack up (`npx supabase start && npx supabase db reset`).
+
 ```bash
-cp apps/web/.env.example apps/web/.env.local     # fill in VITE_SUPABASE_ANON_KEY (npx supabase status)
-(cd apps/render-service && ALLOW_INLINE_DEFINITION=true SUPABASE_URL=... SUPABASE_ANON_KEY=... node src/server.ts)
-pnpm --filter @raseport/web dev                  # http://localhost:5173
+# 1. editor config (writes the anon key for you)
+printf 'VITE_SUPABASE_URL=http://127.0.0.1:55321\nVITE_SUPABASE_ANON_KEY=%s\nVITE_RENDER_URL=http://localhost:8788\n' \
+  "$(npx supabase status -o env | grep ^ANON_KEY | cut -d'"' -f2)" > apps/web/.env.local
+
+# 2. render service on :8788 (needs `typst` on PATH, or use the Docker image)
+(cd apps/render-service && PORT=8788 ALLOW_INLINE_DEFINITION=true SUPABASE_URL=http://127.0.0.1:55321 \
+  SUPABASE_ANON_KEY="$(cd ../.. && npx supabase status -o env | grep ^ANON_KEY | cut -d'"' -f2)" node src/server.ts)
+
+# 3. the editor (another terminal): http://localhost:5173
+pnpm --filter @raseport/web dev
 ```
 
 Sign in (or create an account), edit the JSON on the left (autocomplete and validation come from the
-shared schema), set the report params, and the PDF preview refreshes as you type. Save/open uses the
-`report_definitions` table, so row-level security applies. The service must allow the editor's origin
-(`CORS_ORIGINS`, default `http://localhost:5173`) and `ALLOW_INLINE_DEFINITION=true` for unsaved previews.
+shared schema) and set the report params; the PDF preview refreshes as you type.
+
+- **Insert** adds a block (as a new row in the last body band), band, dataset or param, with a fresh id.
+- **Data** tab shows each dataset's real columns, including nested jsonb paths (click one to copy it), and sample rows.
+- **Format** pretty-prints the JSON; **Ctrl+S** saves to `report_definitions` (row-level security applies).
+- An unsaved draft is kept in the browser across reloads.
+
+The service must allow the editor's origin (`CORS_ORIGINS`, default `http://localhost:5173`) and
+`ALLOW_INLINE_DEFINITION=true` for unsaved previews and the Data tab.

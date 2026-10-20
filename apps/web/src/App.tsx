@@ -3,12 +3,23 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseDefinition, type ParsedReport } from "@raseport/schema";
 import exampleJson from "../../../examples/sales-report.json?raw";
+import { DataPanel } from "./DataPanel.tsx";
+import { INSERT_LABELS, insertItem, type InsertKind } from "./insert.ts";
 import { Login } from "./Login.tsx";
 import "./monaco.ts";
-import { renderPdf, RenderError, type RenderResult } from "./render.ts";
+import { fetchData, renderPdf, RenderError, type DatasetInfo, type RenderResult } from "./render.ts";
 import { configured, supabase } from "./supabase.ts";
 
 type Saved = { id: string; name: string; updated_at: string };
+
+const DRAFT_KEY = "raseport.draft";
+function loadDraft(): string | null {
+  try {
+    return localStorage.getItem(DRAFT_KEY);
+  } catch {
+    return null; // storage can be blocked; the editor still works without a draft
+  }
+}
 
 function check(text: string): { def: ParsedReport | null; error: string | null } {
   let json: unknown;
@@ -41,7 +52,14 @@ export function App() {
 }
 
 function Workspace({ session }: { session: Session }) {
-  const [text, setText] = useState(exampleJson);
+  const [text, setText] = useState(() => loadDraft() ?? exampleJson);
+  const [tab, setTab] = useState<"preview" | "data">("preview");
+  const [data, setData] = useState<DatasetInfo[] | null>(null);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const dataAbort = useRef<AbortController | null>(null);
+  const editorRef = useRef<Parameters<NonNullable<React.ComponentProps<typeof Editor>["onMount"]>>[0] | null>(null);
+  const saveRef = useRef<() => void>(() => {});
   const [params, setParams] = useState<Record<string, string | boolean>>({});
   const [auto, setAuto] = useState(true);
   const [status, setStatus] = useState<"idle" | "rendering">("idle");
@@ -90,6 +108,62 @@ function Workspace({ session }: { session: Session }) {
     return () => clearTimeout(t);
   }, [auto, def, missing, render]);
 
+  const loadData = useCallback(async () => {
+    if (!def || missing.length) return;
+    dataAbort.current?.abort();
+    const ctrl = (dataAbort.current = new AbortController());
+    setDataLoading(true);
+    try {
+      setData(await fetchData({ definition: JSON.parse(text), params: effectiveParams }, session.access_token, ctrl.signal));
+      setDataError(null);
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      setDataError((e as Error).message);
+    } finally {
+      if (dataAbort.current === ctrl) setDataLoading(false);
+    }
+  }, [def, missing, text, effectiveParams, session.access_token]);
+
+  // The data tab follows the definition and params while it is open.
+  useEffect(() => {
+    if (tab !== "data" || !def || missing.length) return;
+    const t = setTimeout(loadData, 600);
+    return () => clearTimeout(t);
+  }, [tab, def, missing, loadData]);
+
+  // Keep an unsaved draft across reloads. Debounced while typing, and flushed when the page is hidden
+  // or closed so the last edits are not lost.
+  const textRef = useRef(text);
+  textRef.current = text;
+  useEffect(() => {
+    const flush = () => {
+      try {
+        localStorage.setItem(DRAFT_KEY, textRef.current);
+      } catch {
+        /* ignore: drafts are a convenience */
+      }
+    };
+    const t = setTimeout(flush, 500);
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [text]);
+
+  function insert(kind: InsertKind) {
+    let doc: Record<string, unknown>;
+    try {
+      doc = JSON.parse(text);
+    } catch {
+      return setNote("Fix the JSON before inserting.");
+    }
+    setText(JSON.stringify(insertItem(doc, kind), null, 2));
+    setNote(`Inserted ${INSERT_LABELS[kind].toLowerCase()}`);
+  }
+
   const loadList = useCallback(async () => {
     const { data } = await supabase.from("report_definitions").select("id,name,updated_at").order("updated_at", { ascending: false });
     setSaved((data as Saved[] | null) ?? []);
@@ -106,6 +180,8 @@ function Workspace({ session }: { session: Session }) {
     setNote(`Saved "${def.name}"`);
     loadList();
   }
+
+  saveRef.current = save;
 
   async function open(id: string) {
     if (!id) {
@@ -130,6 +206,16 @@ function Workspace({ session }: { session: Session }) {
           ))}
         </select>
         <button onClick={save} disabled={!def}>{currentId ? "Save" : "Save as new"}</button>
+        <select value="" onChange={(e) => e.target.value && insert(e.target.value as InsertKind)} aria-label="Insert">
+          <option value="">Insert…</option>
+          <optgroup label="Block (new row)">
+            {(["text", "kpi", "chart", "table", "divider", "spacer", "pageBreak"] as const).map((k) => <option key={k} value={k}>{INSERT_LABELS[k]}</option>)}
+          </optgroup>
+          <optgroup label="Structure">
+            {(["band", "dataset", "param"] as const).map((k) => <option key={k} value={k}>{INSERT_LABELS[k]}</option>)}
+          </optgroup>
+        </select>
+        <button className="secondary" onClick={() => editorRef.current?.getAction("editor.action.formatDocument")?.run()}>Format</button>
         <span className="spacer" />
         {note && <span className="note">{note}</span>}
         <span className="note">{session.user.email}</span>
@@ -164,19 +250,30 @@ function Workspace({ session }: { session: Session }) {
             language="json"
             value={text}
             onChange={(v: string | undefined) => setText(v ?? "")}
+            onMount={(ed, m) => {
+              editorRef.current = ed;
+              ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => saveRef.current());
+            }}
             options={{ minimap: { enabled: false }, fontSize: 13, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true }}
             theme="vs-dark"
           />
           {definitionError && <pre className="problems">{definitionError}</pre>}
         </section>
         <section className="pane preview">
-          {renderError && (
-            <div className="error-box">
-              <strong>{renderError.message}</strong>
-              {renderError.detail && <pre>{renderError.detail}</pre>}
-            </div>
-          )}
-          {result ? <iframe title="Report preview" src={result.url} /> : <p className="empty">{missing.length ? `Set ${missing.join(", ")} to render.` : "Fix any problems on the left, then Render."}</p>}
+          <div className="tabs" role="tablist">
+            <button role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")}>Preview</button>
+            <button role="tab" aria-selected={tab === "data"} onClick={() => setTab("data")}>Data</button>
+          </div>
+          <div className="preview-body" hidden={tab !== "preview"}>
+            {renderError && (
+              <div className="error-box">
+                <strong>{renderError.message}</strong>
+                {renderError.detail && <pre>{renderError.detail}</pre>}
+              </div>
+            )}
+            {result ? <iframe title="Report preview" src={result.url} /> : <p className="empty">{missing.length ? `Set ${missing.join(", ")} to render.` : "Fix any problems on the left, then Render."}</p>}
+          </div>
+          {tab === "data" && <DataPanel datasets={missing.length ? null : data} loading={dataLoading} error={dataError} onRefresh={loadData} />}
         </section>
       </main>
     </div>
