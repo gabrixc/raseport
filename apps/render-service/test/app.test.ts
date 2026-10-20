@@ -40,11 +40,13 @@ describe("error responses", () => {
     expect((await res.json()).issues).toEqual([{ message: 'block c1: unknown dataset "nope"', nodeId: "c1" }]);
   });
 
-  it("returns 400 with the dataset id for a disallowed RPC", async () => {
+  it("rejects a non report_* RPC name at validation, pointing at its path", async () => {
     const def = { ...base, datasets: [{ id: "d1", source: { kind: "rpc", name: "drop_table" } }] };
-    const res = await post("/data", def);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ nodeId: "d1" });
+    for (const path of ["/data", "/render"]) {
+      const res = await post(path, def);
+      expect(res.status).toBe(422);
+      expect((await res.json()).issues[0].path).toEqual(["datasets", 0, "source", "name"]);
+    }
   });
 
   it("rejects oversized bodies with 413", async () => {

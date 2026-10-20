@@ -32,3 +32,13 @@ describe("DefinitionError", () => {
     }
   });
 });
+
+describe("dataset RPC names", () => {
+  const withRpc = (name: string) => ({ schemaVersion: 1, name: "x", datasets: [{ id: "a", source: { kind: "rpc", name } }], body: [] });
+  it("accepts report_* names", () => {
+    expect(() => parseDefinition(withRpc("report_sales_by_region"))).not.toThrow();
+  });
+  it.each(["report_", "drop_it", "Report_x", "report_x-y", "report_x; drop"])("rejects %s with a helpful message", (name) => {
+    expect(() => parseDefinition(withRpc(name))).toThrow(/report_ followed by lowercase letters/);
+  });
+});

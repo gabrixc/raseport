@@ -135,9 +135,13 @@ export type Cell = z.infer<typeof Cell>;
 
 export const ColumnType = z.enum(["text", "number", "date", "bool", "json"]);
 
+/** The render service only calls functions named report_*, so the editor can flag anything else immediately. */
+export const RPC_NAME = /^report_[a-z0-9_]+$/;
+const RpcName = z.string().regex(RPC_NAME, "RPC name must be report_ followed by lowercase letters, digits or underscores");
+
 export const Dataset = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_]*$/),
-  source: z.object({ kind: z.literal("rpc"), name: z.string().regex(/^[a-z_][a-z0-9_]*$/) }),
+  source: z.object({ kind: z.literal("rpc"), name: RpcName }),
   /** values are literals or {$param} */
   args: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), ParamRef])).default({}),
   /** optional declared types, used by editors and for validation */

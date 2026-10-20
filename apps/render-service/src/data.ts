@@ -1,17 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DatasetRows, ParamValues, ParsedReport } from "@raseport/schema";
+import { RPC_NAME } from "@raseport/schema";
 import { BadRequest } from "./params.ts";
 
 const PAGE = 1000; // PostgREST's default max_rows; RPCs must return a stable order
 export const MAX_ROWS = 50_000;
 
-/** Only functions named report_* are callable, so definitions cannot reach arbitrary RPCs. */
-const ALLOWED_RPC = /^report_[a-z0-9_]+$/;
+/** Only functions named report_* are callable (the schema checks this too; this is the second line of defence). */
+const ALLOWED_RPC = RPC_NAME;
 
 export async function fetchDatasets(client: SupabaseClient, def: ParsedReport, params: ParamValues): Promise<DatasetRows> {
   const entries = await Promise.all(
     def.datasets.map(async (ds) => {
-      if (!ALLOWED_RPC.test(ds.source.name)) throw new BadRequest(`RPC "${ds.source.name}" is not allowed (must start with report_)`, ds.id);
+      if (!ALLOWED_RPC.test(ds.source.name)) throw new BadRequest(`RPC "${ds.source.name}" is not allowed (use report_ followed by lowercase letters, digits or underscores)`, ds.id);
       const args = Object.fromEntries(
         Object.entries(ds.args).map(([k, v]) => [k, v !== null && typeof v === "object" ? params[v.$param] : v]),
       );
