@@ -1,6 +1,13 @@
 import type { ParamValues, ParsedReport } from "@raseport/schema";
 
-export class BadRequest extends Error {}
+export class BadRequest extends Error {
+  /** `id` of the definition node the problem is about, when there is one */
+  readonly nodeId: string | undefined;
+  constructor(message: string, nodeId?: string) {
+    super(message);
+    this.nodeId = nodeId;
+  }
+}
 
 /** Validate and coerce request params against the definition's declared params. */
 export function resolveParams(def: ParsedReport, input: Record<string, unknown> = {}): ParamValues {

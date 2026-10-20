@@ -45,3 +45,7 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-
 .table-wrap th { position: sticky; top: 0; background: var(--panel); }
 .table-wrap td.num { text-align: right; }
 .preview-body[hidden] { display: none; }
+.problem-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.problem-list button.link { all: unset; cursor: pointer; text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
+.problem-list button.link:hover { text-decoration-style: solid; }
+.problem-list button.link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

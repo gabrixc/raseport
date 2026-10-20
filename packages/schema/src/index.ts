@@ -191,42 +191,61 @@ export function parseDefinition(input: unknown): ParsedReport {
   return def;
 }
 
+export interface DefinitionIssue {
+  message: string;
+  /** `id` of the node the problem is about, so editors can jump to it */
+  nodeId?: string;
+}
+
+export class DefinitionError extends Error {
+  readonly issues: DefinitionIssue[];
+  constructor(issues: DefinitionIssue[]) {
+    super(`Invalid report definition:\n- ${issues.map((i) => i.message).join("\n- ")}`);
+    this.name = "DefinitionError";
+    this.issues = issues;
+  }
+}
+
 /** Cross-reference checks that Zod shapes cannot express. */
 export function assertReferences(def: ParsedReport): void {
   const ds = new Set(def.datasets.map((d) => d.id));
   const params = new Set(def.params.map((p) => p.name));
-  const errors: string[] = [];
-  if (ds.size !== def.datasets.length) errors.push("duplicate dataset id");
+  const issues: DefinitionIssue[] = [];
+  const seen = new Set<string>();
+  for (const d of def.datasets) {
+    if (seen.has(d.id)) issues.push({ message: `duplicate dataset id "${d.id}"`, nodeId: d.id });
+    seen.add(d.id);
+  }
 
-  const checkPart = (where: string, p: Part) => {
+  const checkPart = (where: string, nodeId: string, p: Part) => {
     if (typeof p === "string") return;
-    if ("$param" in p && !params.has(p.$param)) errors.push(`${where}: unknown param "${p.$param}"`);
-    if ("$agg" in p && !ds.has(p.$agg.dataset)) errors.push(`${where}: unknown dataset "${p.$agg.dataset}"`);
+    if ("$param" in p && !params.has(p.$param)) issues.push({ message: `${where}: unknown param "${p.$param}"`, nodeId });
+    if ("$agg" in p && !ds.has(p.$agg.dataset)) issues.push({ message: `${where}: unknown dataset "${p.$agg.dataset}"`, nodeId });
   };
   for (const d of def.datasets)
     for (const [k, v] of Object.entries(d.args))
-      if (v && typeof v === "object") checkPart(`dataset ${d.id} arg ${k}`, v);
+      if (v && typeof v === "object") checkPart(`dataset ${d.id} arg ${k}`, d.id, v);
 
   const rows = [...def.pageHeader, ...def.pageFooter, ...def.body.flatMap((b) => b.rows)];
   for (const band of def.body) {
-    if (band.dataset && !ds.has(band.dataset)) errors.push(`band ${band.id}: unknown dataset "${band.dataset}"`);
+    if (band.dataset && !ds.has(band.dataset)) issues.push({ message: `band ${band.id}: unknown dataset "${band.dataset}"`, nodeId: band.id });
   }
   for (const row of rows)
     for (const cell of row.cells)
       for (const b of cell.blocks) {
-        if (b.type === "text") b.value.forEach((p) => checkPart(`block ${b.id}`, p));
-        if (b.type === "kpi") checkPart(`block ${b.id}`, b.value);
-        if (b.type === "chart" && !ds.has(b.dataset)) errors.push(`block ${b.id}: unknown dataset "${b.dataset}"`);
+        if (b.type === "text") b.value.forEach((p) => checkPart(`block ${b.id}`, b.id, p));
+        if (b.type === "kpi") checkPart(`block ${b.id}`, b.id, b.value);
+        if (b.type === "chart" && !ds.has(b.dataset)) issues.push({ message: `block ${b.id}: unknown dataset "${b.dataset}"`, nodeId: b.id });
         if (b.type === "table") {
-          if (!ds.has(b.dataset)) errors.push(`block ${b.id}: unknown dataset "${b.dataset}"`);
-          if (b.groupSubtotals && !b.groupBy) errors.push(`block ${b.id}: groupSubtotals needs groupBy`);
+          if (!ds.has(b.dataset)) issues.push({ message: `block ${b.id}: unknown dataset "${b.dataset}"`, nodeId: b.id });
+          if (b.groupSubtotals && !b.groupBy) issues.push({ message: `block ${b.id}: groupSubtotals needs groupBy`, nodeId: b.id });
         }
       }
-  if (errors.length) throw new Error(`Invalid report definition:\n- ${errors.join("\n- ")}`);
+  if (issues.length) throw new DefinitionError(issues);
 }
-export { ZodError } from "zod";
 
 /** JSON Schema (draft-07, which Monaco supports best) for editors. Describes what authors write, so defaults are optional. */
 export function reportJsonSchema(): Record<string, unknown> {
   return z.toJSONSchema(ReportDefinition, { io: "input", unrepresentable: "any", target: "draft-7" }) as Record<string, unknown>;
 }
+export { ZodError } from "zod";

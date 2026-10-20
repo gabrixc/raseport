@@ -1,12 +1,15 @@
 import Editor from "@monaco-editor/react";
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { parseDefinition, type ParsedReport } from "@raseport/schema";
 import exampleJson from "../../../examples/sales-report.json?raw";
 import { DataPanel } from "./DataPanel.tsx";
 import { INSERT_LABELS, insertItem, type InsertKind } from "./insert.ts";
 import { Login } from "./Login.tsx";
-import "./monaco.ts";
+import { check } from "./check.ts";
+import { locateProblem } from "./locate.ts";
+import { setCompletionDatasets } from "./monaco.ts";
+import { ProblemList } from "./ProblemList.tsx";
+import type { Problem } from "./problems.ts";
 import { fetchData, renderPdf, RenderError, type DatasetInfo, type RenderResult } from "./render.ts";
 import { configured, supabase } from "./supabase.ts";
 
@@ -18,21 +21,6 @@ function loadDraft(): string | null {
     return localStorage.getItem(DRAFT_KEY);
   } catch {
     return null; // storage can be blocked; the editor still works without a draft
-  }
-}
-
-function check(text: string): { def: ParsedReport | null; error: string | null } {
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch (e) {
-    return { def: null, error: `JSON: ${(e as Error).message}` };
-  }
-  try {
-    return { def: parseDefinition(json), error: null };
-  } catch (e) {
-    const err = e as { issues?: { path: (string | number)[]; message: string }[]; message: string };
-    return { def: null, error: err.issues ? err.issues.slice(0, 8).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("\n") : err.message };
   }
 }
 
@@ -56,7 +44,7 @@ function Workspace({ session }: { session: Session }) {
   const [tab, setTab] = useState<"preview" | "data">("preview");
   const [data, setData] = useState<DatasetInfo[] | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
-  const [dataError, setDataError] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<{ message: string; problems: Problem[] } | null>(null);
   const dataAbort = useRef<AbortController | null>(null);
   const editorRef = useRef<Parameters<NonNullable<React.ComponentProps<typeof Editor>["onMount"]>>[0] | null>(null);
   const saveRef = useRef<() => void>(() => {});
@@ -64,14 +52,14 @@ function Workspace({ session }: { session: Session }) {
   const [auto, setAuto] = useState(true);
   const [status, setStatus] = useState<"idle" | "rendering">("idle");
   const [result, setResult] = useState<RenderResult | null>(null);
-  const [renderError, setRenderError] = useState<{ message: string; detail?: string | undefined } | null>(null);
+  const [renderError, setRenderError] = useState<{ message: string; detail?: string | undefined; problems: Problem[] } | null>(null);
   const [saved, setSaved] = useState<Saved[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const lastUrl = useRef<string | null>(null);
 
-  const { def, error: definitionError } = useMemo(() => check(text), [text]);
+  const { def, problems } = useMemo(() => check(text), [text]);
 
   // Fill in declared defaults for params the user has not touched.
   const effectiveParams = useMemo(() => {
@@ -95,7 +83,7 @@ function Workspace({ session }: { session: Session }) {
       setRenderError(null);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setRenderError({ message: (e as Error).message, detail: e instanceof RenderError ? e.detail : undefined });
+      setRenderError({ message: (e as Error).message, detail: e instanceof RenderError ? e.detail : undefined, problems: e instanceof RenderError ? e.problems : [] });
     } finally {
       if (abort.current === ctrl) setStatus("idle");
     }
@@ -118,18 +106,41 @@ function Workspace({ session }: { session: Session }) {
       setDataError(null);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setDataError((e as Error).message);
+      setDataError({ message: (e as Error).message, problems: e instanceof RenderError ? e.problems : [] });
     } finally {
       if (dataAbort.current === ctrl) setDataLoading(false);
     }
   }, [def, missing, text, effectiveParams, session.access_token]);
 
-  // The data tab follows the definition and params while it is open.
+  // Load datasets in the background whenever what they depend on changes (not the layout), so the Data tab
+  // and field-path completion are always current.
+  const dataKey = def && !missing.length ? JSON.stringify([def.datasets, effectiveParams]) : null;
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
   useEffect(() => {
-    if (tab !== "data" || !def || missing.length) return;
-    const t = setTimeout(loadData, 600);
+    if (!dataKey) return;
+    const t = setTimeout(() => void loadDataRef.current(), 600);
     return () => clearTimeout(t);
-  }, [tab, def, missing, loadData]);
+  }, [dataKey]);
+
+  useEffect(() => {
+    setCompletionDatasets((data ?? []).map((d) => ({ id: d.id, columns: d.columns })));
+  }, [data]);
+
+  /** Select the spot a problem is about and scroll it into view. */
+  const jump = useCallback((p: Problem) => {
+    const ed = editorRef.current;
+    const model = ed?.getModel();
+    if (!ed || !model) return;
+    const t = locateProblem(model.getValue(), p);
+    if (!t) return setNote("Could not find that spot in the JSON");
+    const a = model.getPositionAt(t.offset);
+    const b = model.getPositionAt(t.offset + t.length);
+    const range = { startLineNumber: a.lineNumber, startColumn: a.column, endLineNumber: b.lineNumber, endColumn: b.column };
+    ed.setSelection(range);
+    ed.revealRangeInCenter(range);
+    ed.focus();
+  }, []);
 
   // Keep an unsaved draft across reloads. Debounced while typing, and flushed when the page is hidden
   // or closed so the last edits are not lost.
@@ -254,10 +265,14 @@ function Workspace({ session }: { session: Session }) {
               editorRef.current = ed;
               ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => saveRef.current());
             }}
-            options={{ minimap: { enabled: false }, fontSize: 13, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true }}
+            options={{ quickSuggestions: { strings: true, other: true, comments: false }, minimap: { enabled: false }, fontSize: 13, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true }}
             theme="vs-dark"
           />
-          {definitionError && <pre className="problems">{definitionError}</pre>}
+          {problems.length > 0 && (
+            <div className="problems">
+              <ProblemList problems={problems} onJump={jump} />
+            </div>
+          )}
         </section>
         <section className="pane preview">
           <div className="tabs" role="tablist">
@@ -267,13 +282,13 @@ function Workspace({ session }: { session: Session }) {
           <div className="preview-body" hidden={tab !== "preview"}>
             {renderError && (
               <div className="error-box">
-                <strong>{renderError.message}</strong>
+                {renderError.problems.length ? <ProblemList problems={renderError.problems} onJump={jump} /> : <strong>{renderError.message}</strong>}
                 {renderError.detail && <pre>{renderError.detail}</pre>}
               </div>
             )}
             {result ? <iframe title="Report preview" src={result.url} /> : <p className="empty">{missing.length ? `Set ${missing.join(", ")} to render.` : "Fix any problems on the left, then Render."}</p>}
           </div>
-          {tab === "data" && <DataPanel datasets={missing.length ? null : data} loading={dataLoading} error={dataError} onRefresh={loadData} />}
+          {tab === "data" && <DataPanel datasets={missing.length ? null : data} loading={dataLoading} error={dataError} onJump={jump} onRefresh={loadData} />}
         </section>
       </main>
     </div>

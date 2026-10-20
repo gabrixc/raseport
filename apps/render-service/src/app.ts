@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateTypst } from "@raseport/render-core";
-import { parseDefinition, ZodError, type DatasetRows, type ParamValues, type ParsedReport } from "@raseport/schema";
+import { DefinitionError, parseDefinition, ZodError, type DatasetRows, type ParamValues, type ParsedReport } from "@raseport/schema";
 import { fetchDatasets } from "./data.ts";
 import { describeRows } from "./describe.ts";
 import { BadRequest, resolveParams } from "./params.ts";
@@ -62,9 +62,9 @@ export function createApp(deps: AppDeps) {
       const data = await fetchDatasets(client, def, params);
       return await run({ def, params, data });
     } catch (e) {
-      if (e instanceof BadRequest) return c.json({ error: e.message }, 400);
+      if (e instanceof BadRequest) return c.json({ error: e.message, nodeId: e.nodeId }, 400);
       if (e instanceof ZodError) return c.json({ error: "Invalid report definition", issues: e.issues }, 422);
-      if (e instanceof Error && e.message.startsWith("Invalid report definition")) return c.json({ error: e.message }, 422);
+      if (e instanceof DefinitionError) return c.json({ error: e.message, issues: e.issues }, 422);
       if (e instanceof TypstError) return c.json({ error: "Render failed", detail: e.message }, 500);
       console.error(e);
       return c.json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);

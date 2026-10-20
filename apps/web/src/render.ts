@@ -1,3 +1,4 @@
+import type { Problem } from "./problems.ts";
 import { RENDER_URL } from "./supabase.ts";
 
 export interface RenderResult {
@@ -7,12 +8,32 @@ export interface RenderResult {
 }
 
 export class RenderError extends Error {
-  constructor(
-    message: string,
-    readonly detail?: string,
-  ) {
+  readonly detail: string | undefined;
+  /** jumpable problems (issues, or the single dataset/node the error is about) */
+  readonly problems: Problem[];
+  constructor(message: string, detail?: string, problems: Problem[] = []) {
     super(message);
+    this.detail = detail;
+    this.problems = problems;
   }
+}
+
+interface ErrorBody {
+  error?: string;
+  detail?: string;
+  nodeId?: string;
+  issues?: { path?: (string | number)[]; message: string; nodeId?: string }[];
+}
+
+async function toRenderError(res: Response, fallback: string): Promise<RenderError> {
+  const err = (await res.json().catch(() => ({}))) as ErrorBody;
+  const message = err.error ?? `${fallback} (${res.status})`;
+  const problems: Problem[] = err.issues?.length
+    ? err.issues.map((i) => ({ message: i.path ? `${i.path.join(".")}: ${i.message}` : i.message, path: i.path, nodeId: i.nodeId }))
+    : err.nodeId
+      ? [{ message, nodeId: err.nodeId }]
+      : [];
+  return new RenderError(message, err.detail, problems);
 }
 
 export async function renderPdf(
@@ -26,11 +47,7 @@ export async function renderPdf(
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; issues?: { path: (string | number)[]; message: string }[] };
-    const issues = err.issues?.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n");
-    throw new RenderError(err.error ?? `Render failed (${res.status})`, err.detail ?? issues);
-  }
+  if (!res.ok) throw await toRenderError(res, "Render failed");
   const blob = await res.blob();
   return { url: URL.createObjectURL(blob), ms: Number(res.headers.get("x-render-ms")) || null, bytes: blob.size };
 }
@@ -49,7 +66,7 @@ export async function fetchData(body: { definition: unknown; params: Record<stri
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
-  const json = (await res.json().catch(() => ({}))) as { datasets?: DatasetInfo[]; error?: string };
-  if (!res.ok) throw new RenderError(json.error ?? `Data request failed (${res.status})`);
+  if (!res.ok) throw await toRenderError(res, "Data request failed");
+  const json = (await res.json()) as { datasets?: DatasetInfo[] };
   return json.datasets ?? [];
 }

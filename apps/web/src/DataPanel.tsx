@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ProblemList } from "./ProblemList.tsx";
+import type { Problem } from "./problems.ts";
 import type { DatasetInfo } from "./render.ts";
 
 function pick(row: Record<string, unknown>, path: string): unknown {
@@ -12,7 +14,7 @@ function pick(row: Record<string, unknown>, path: string): unknown {
 
 const show = (v: unknown) => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function DataPanel({ datasets, loading, error, onRefresh }: { datasets: DatasetInfo[] | null; loading: boolean; error: string | null; onRefresh: () => void }) {
+export function DataPanel({ datasets, loading, error, onJump, onRefresh }: { datasets: DatasetInfo[] | null; loading: boolean; error: { message: string; problems: Problem[] } | null; onJump: (p: Problem) => void; onRefresh: () => void }) {
   const [copied, setCopied] = useState<string | null>(null);
 
   async function copy(path: string) {
@@ -31,7 +33,7 @@ export function DataPanel({ datasets, loading, error, onRefresh }: { datasets: D
         <span className="note">Click a field path to copy it for a column, chart axis or series.</span>
         <button className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
       </div>
-      {error && <div className="error-box"><strong>{error}</strong></div>}
+      {error && <div className="error-box">{error.problems.length ? <ProblemList problems={error.problems} onJump={onJump} /> : <strong>{error.message}</strong>}</div>}
       {!datasets && !error && <p className="empty">{loading ? "Loading data…" : "Set the required params to load data."}</p>}
       {datasets?.length === 0 && <p className="empty">This report has no datasets yet. Use Insert → Dataset.</p>}
       {datasets?.map((ds) => (

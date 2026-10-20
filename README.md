@@ -32,6 +32,8 @@ docker run --network host -e SUPABASE_URL=http://127.0.0.1:55321 \
 
 ## Dev editor
 
+Node runs the service's TypeScript directly (type stripping), so `erasableSyntaxOnly` is on: no enums or constructor parameter properties.
+
 Run these from the repo root, with the local Supabase stack up (`npx supabase start && npx supabase db reset`).
 
 ```bash
@@ -52,6 +54,8 @@ shared schema) and set the report params; the PDF preview refreshes as you type.
 
 - **Insert** adds a block (as a new row in the last body band), band, dataset or param, with a fresh id.
 - **Data** tab shows each dataset's real columns, including nested jsonb paths (click one to copy it), and sample rows.
+- **Autocomplete** suggests real column paths (including nested jsonb) for `field`, `x`, `groupBy` and series fields, plus dataset ids and param names. Column lists come from the Data tab's loaded datasets (or the dataset's declared `columns` when no data is loaded).
+- **Click a problem to jump** to it: JSON syntax errors, schema and reference errors, and server-side dataset errors all select the offending spot in the editor.
 - **Format** pretty-prints the JSON; **Ctrl+S** saves to `report_definitions` (row-level security applies).
 - An unsaved draft is kept in the browser across reloads.
 

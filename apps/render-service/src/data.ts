@@ -11,19 +11,19 @@ const ALLOWED_RPC = /^report_[a-z0-9_]+$/;
 export async function fetchDatasets(client: SupabaseClient, def: ParsedReport, params: ParamValues): Promise<DatasetRows> {
   const entries = await Promise.all(
     def.datasets.map(async (ds) => {
-      if (!ALLOWED_RPC.test(ds.source.name)) throw new BadRequest(`RPC "${ds.source.name}" is not allowed (must start with report_)`);
+      if (!ALLOWED_RPC.test(ds.source.name)) throw new BadRequest(`RPC "${ds.source.name}" is not allowed (must start with report_)`, ds.id);
       const args = Object.fromEntries(
         Object.entries(ds.args).map(([k, v]) => [k, v !== null && typeof v === "object" ? params[v.$param] : v]),
       );
       const rows: Record<string, unknown>[] = [];
       for (let from = 0; rows.length < MAX_ROWS; from += PAGE) {
         const { data, error } = await client.rpc(ds.source.name, args).range(from, from + PAGE - 1);
-        if (error) throw new Error(`Dataset "${ds.id}" failed: ${error.message}`);
+        if (error) throw new BadRequest(`Dataset "${ds.id}" failed: ${error.message}`, ds.id);
         const page = (data ?? []) as Record<string, unknown>[];
         rows.push(...page);
         if (page.length < PAGE) break;
       }
-      if (rows.length >= MAX_ROWS) throw new BadRequest(`Dataset "${ds.id}" exceeds ${MAX_ROWS} rows`);
+      if (rows.length >= MAX_ROWS) throw new BadRequest(`Dataset "${ds.id}" exceeds ${MAX_ROWS} rows`, ds.id);
       return [ds.id, rows] as const;
     }),
   );

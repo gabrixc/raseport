@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDefinition, reportJsonSchema } from "../src/index.ts";
+import { DefinitionError, parseDefinition, reportJsonSchema } from "../src/index.ts";
 
 describe("reportJsonSchema", () => {
   const schema = reportJsonSchema() as { properties: Record<string, unknown>; required?: string[] };
@@ -12,5 +12,23 @@ describe("reportJsonSchema", () => {
   });
   it("knows block types", () => {
     expect(JSON.stringify(schema)).toContain('"chart"');
+  });
+});
+
+describe("DefinitionError", () => {
+  it("carries the id of the node each issue is about", () => {
+    const def = {
+      schemaVersion: 1,
+      name: "x",
+      datasets: [{ id: "a", source: { kind: "rpc", name: "report_a" } }],
+      body: [{ id: "b1", type: "body", rows: [{ id: "r1", cells: [{ span: 12, blocks: [{ type: "table", id: "t1", dataset: "nope", columns: [{ field: "x", label: "X" }] }] }] }] }],
+    };
+    try {
+      parseDefinition(def);
+      throw new Error("should not parse");
+    } catch (e) {
+      expect(e).toBeInstanceOf(DefinitionError);
+      expect((e as DefinitionError).issues).toEqual([{ message: 'block t1: unknown dataset "nope"', nodeId: "t1" }]);
+    }
   });
 });
