@@ -18,6 +18,7 @@ const app = createApp({
     maxConcurrent: Number(process.env.MAX_CONCURRENCY ?? 4),
   }),
   allowInlineDefinition: process.env.ALLOW_INLINE_DEFINITION === "true",
+  corsOrigins: (process.env.CORS_ORIGINS ?? "http://localhost:5173").split(",").map((o) => o.trim()),
 });
 
 const port = Number(process.env.PORT ?? 8787);

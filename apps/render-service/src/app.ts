@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateTypst } from "@raseport/render-core";
 import { parseDefinition, ZodError } from "@raseport/schema";
@@ -12,6 +13,8 @@ export interface AppDeps {
   compile(source: string): Promise<Buffer>;
   /** Allow posting an inline definition (dev editor preview). */
   allowInlineDefinition: boolean;
+  /** Browser origins allowed to call the service. */
+  corsOrigins: string[];
 }
 
 export function supabaseClientFactory(url: string, anonKey: string) {
@@ -24,6 +27,8 @@ export function supabaseClientFactory(url: string, anonKey: string) {
 
 export function createApp(deps: AppDeps) {
   const app = new Hono();
+  // Auth is a bearer token (no cookies), so an origin allow-list is enough.
+  app.use("*", cors({ origin: deps.corsOrigins, allowHeaders: ["authorization", "content-type"], allowMethods: ["POST", "GET", "OPTIONS"], exposeHeaders: ["x-render-ms"] }));
 
   app.get("/healthz", (c) => c.text("ok"));
 
@@ -51,9 +56,11 @@ export function createApp(deps: AppDeps) {
       const def = parseDefinition(raw);
       const params = resolveParams(def, body.params);
       const data = await fetchDatasets(client, def, params);
+      const t0 = Date.now();
       const pdf = await deps.compile(generateTypst(def, data, params));
       return new Response(new Uint8Array(pdf), {
-        headers: { "content-type": "application/pdf", "content-disposition": `inline; filename="${def.name.replace(/[^\w.-]+/g, "_")}.pdf"` },
+        headers: {
+          "x-render-ms": String(Date.now() - t0), "content-type": "application/pdf", "content-disposition": `inline; filename="${def.name.replace(/[^\w.-]+/g, "_")}.pdf"` },
       });
     } catch (e) {
       if (e instanceof BadRequest) return c.json({ error: e.message }, 400);

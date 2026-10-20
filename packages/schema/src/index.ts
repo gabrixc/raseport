@@ -225,3 +225,8 @@ export function assertReferences(def: ParsedReport): void {
   if (errors.length) throw new Error(`Invalid report definition:\n- ${errors.join("\n- ")}`);
 }
 export { ZodError } from "zod";
+
+/** JSON Schema (draft-07, which Monaco supports best) for editors. Describes what authors write, so defaults are optional. */
+export function reportJsonSchema(): Record<string, unknown> {
+  return z.toJSONSchema(ReportDefinition, { io: "input", unrepresentable: "any", target: "draft-7" }) as Record<string, unknown>;
+}
