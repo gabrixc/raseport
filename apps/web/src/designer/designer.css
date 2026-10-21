@@ -86,3 +86,42 @@ button.d-section-label:hover { color: var(--accent); }
 .i-pill { flex: 0 0 auto; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
 .i-of { font-size: 12px; opacity: 0.7; }
 .i-add-row { display: flex; gap: 6px; }
+
+/* ---- palette ------------------------------------------------------------------------------------ */
+.d-palette { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.d-palette-title { font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--fg) 60%, transparent); margin-right: 2px; }
+.d-palette-sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.d-chip-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: grab; touch-action: none; user-select: none; }
+.d-chip-btn:hover { border-color: var(--accent); }
+.d-chip-btn[data-dragging="true"] { opacity: 0.4; }
+.d-chip-plain { cursor: pointer; }
+.d-glyph { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 700; font-size: 12px; }
+.d-ghost { background: var(--accent); color: #fff; padding: 5px 12px; border-radius: 8px; font: 600 13px system-ui, sans-serif; box-shadow: 0 6px 18px rgb(0 0 0 / 30%); cursor: grabbing; }
+
+/* ---- drop zones: invisible overlays that never move the layout ---------------------------------- */
+.d-zone { position: absolute; pointer-events: none; z-index: 3; }
+.d-zone-top { left: 0; right: 0; top: 0; height: 50%; }
+.d-zone-bottom { left: 0; right: 0; bottom: 0; height: 50%; }
+.d-zone-left { left: -8px; top: 0; bottom: 0; width: 16px; }
+.d-zone-right { right: -8px; top: 0; bottom: 0; width: 16px; }
+.d-zone-gap-top { left: 0; right: 0; top: -9px; height: 18px; }
+.d-zone-gap-bottom { left: 0; right: 0; bottom: -9px; height: 18px; }
+.d-zone-fill { inset: 0; }
+.d-zone[data-over="true"] { background: color-mix(in srgb, var(--accent) 20%, transparent); box-shadow: inset 0 0 0 2px var(--accent); border-radius: 3px; }
+.d-zone-top[data-over="true"] { background: none; box-shadow: inset 0 3px 0 0 var(--accent); }
+.d-zone-bottom[data-over="true"] { background: none; box-shadow: inset 0 -3px 0 0 var(--accent); }
+.d-zone-left[data-over="true"] { background: none; box-shadow: inset 3px 0 0 0 var(--accent); }
+.d-zone-right[data-over="true"] { background: none; box-shadow: inset -3px 0 0 0 var(--accent); }
+.d-zone-gap-top[data-over="true"], .d-zone-gap-bottom[data-over="true"] { background: none; box-shadow: none; }
+.d-zone-gap-top[data-over="true"]::after, .d-zone-gap-bottom[data-over="true"]::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; background: var(--accent); border-radius: 2px; }
+.d-empty-band { position: relative; }
+
+.d-tag { cursor: grab; touch-action: none; user-select: none; }
+.d-row-tab { touch-action: none; cursor: grab; }
+.d-block[data-dragging="true"], .d-row[data-dragging="true"] { opacity: 0.35; }
+.d-cell { position: relative; }
+.d-resize { position: absolute; top: 0; bottom: 0; right: -9px; width: 8px; z-index: 4; cursor: col-resize; touch-action: none; }
+.d-resize::after { content: ""; position: absolute; left: 3px; top: 8%; bottom: 8%; width: 2px; border-radius: 1px; background: transparent; }
+.d-row:hover .d-resize::after, .d-resize:hover::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.d-resize:hover::after { background: var(--accent); }
+.designer[data-dragging="true"] .d-block { outline: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent); }

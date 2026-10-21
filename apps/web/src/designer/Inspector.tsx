@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { removeItem } from "../remove.ts";
 import { AGGREGATES, Check, ColumnPicker, Field, FORMATS, formatName, Group, IconButton, NumberInput, Segmented, Select, TextInput, type ColumnOption } from "./Fields.tsx";
 import { arr, type Json, type Selection } from "./model.ts";
-import { duplicateBlock, duplicateRow, findBlock, removeRow, setCellSpan, setPath, updateNode } from "./ops.ts";
+import { duplicateBlock, duplicateRow, findBlock, findRowPosition, moveBlock, moveRow, removeRow, setCellSpan, setPath, updateNode } from "./ops.ts";
 
 export interface InspectorProps {
   doc: Json;
@@ -285,8 +285,14 @@ export function Inspector(p: InspectorProps) {
 
   if (block) {
     title = `${TITLES[String(block.type)] ?? block.type} · ${block.id}`;
+    const at = findBlock(doc, String(block.id));
+    const cellBlocks = at ? arr(arr(findRowOf(doc, at.rowId)?.cells)[at.cellIndex]?.blocks) : [];
+    const idx = cellBlocks.findIndex((b) => b.id === block.id);
+    const shift = (d: number) => at && onCommit(moveBlock(doc, String(block.id), { kind: "cell", rowId: at.rowId, cellIndex: at.cellIndex, index: d < 0 ? idx - 1 : idx + 2 }), { kind: "block", id: String(block.id) });
     actions = (
       <>
+        <button type="button" className="secondary" disabled={idx <= 0} onClick={() => shift(-1)} title="Move up within this column">↑</button>
+        <button type="button" className="secondary" disabled={idx < 0 || idx >= cellBlocks.length - 1} onClick={() => shift(1)} title="Move down within this column">↓</button>
         <button type="button" className="secondary" onClick={() => { const r = duplicateBlock(doc, String(block.id)); r && onCommit(r.doc, { kind: "block", id: r.newId }); }}>Duplicate</button>
         <button type="button" className="secondary i-danger" onClick={() => onCommit(removeItem(doc, { kind: "block", id: String(block.id) })?.doc ?? null, { kind: "report" })}>Delete</button>
       </>
@@ -300,8 +306,12 @@ export function Inspector(p: InspectorProps) {
       : <p className="i-hint">Nothing to set for this block.</p>;
   } else if (selection.kind === "row" && row) {
     title = `Row · ${row.id}`;
+    const pos = findRowPosition(doc, String(row.id));
+    const shiftRow = (d: number) => pos && onCommit(moveRow(doc, String(row.id), pos.section, d < 0 ? pos.index - 1 : pos.index + 2), { kind: "row", id: String(row.id) });
     actions = (
       <>
+        <button type="button" className="secondary" disabled={!pos || pos.index === 0} onClick={() => shiftRow(-1)} title="Move this row up">↑</button>
+        <button type="button" className="secondary" disabled={!pos || pos.index >= pos.count - 1} onClick={() => shiftRow(1)} title="Move this row down">↓</button>
         <button type="button" className="secondary" onClick={() => { const r = duplicateRow(doc, String(row.id)); r && onCommit(r.doc, { kind: "row", id: r.newId }); }}>Duplicate</button>
         <button type="button" className="secondary i-danger" onClick={() => onCommit(removeRow(doc, String(row.id)), { kind: "report" })}>Delete</button>
       </>

@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProblemList } from "../ProblemList.tsx";
 import type { Problem } from "../problems.ts";
 import type { DatasetInfo } from "../render.ts";
+import { insertItem, makeBlock, type BlockKind } from "../insert.ts";
 import { removeItem } from "../remove.ts";
 import { Canvas } from "./Canvas.tsx";
 import type { ColumnOption } from "./Fields.tsx";
+import { collisionDetection, type DragData, type ZoneData } from "./dnd.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { arr, drawContext, type Json, type Selection } from "./model.ts";
-import { duplicateBlock, duplicateRow, removeRow } from "./ops.ts";
+import { duplicateBlock, duplicateRow, insertBlock, moveBlock, moveRow, removeRow, resizeBoundary } from "./ops.ts";
+import { Palette, PALETTE } from "./Palette.tsx";
 import "./designer.css";
 
 interface DesignerProps {
@@ -41,6 +45,10 @@ function exists(doc: Json, s: Selection): boolean {
 
 export function Designer({ text, onChange, data, dataLoading, params, problems, onSwitchToJson, onShowProblem }: DesignerProps) {
   const [selection, setSelection] = useState<Selection>({ kind: "report" });
+  const [dragLabel, setDragLabel] = useState<string | null>(null);
+  const resizeBase = useRef<Json | null>(null);
+  // A small distance threshold keeps plain clicks (select) separate from drags.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const parsed = useMemo((): { doc: Json } | { error: string } => {
     try {
@@ -84,6 +92,45 @@ export function Designer({ text, onChange, data, dataLoading, params, problems, 
     [data, doc],
   );
 
+  /** Add a block at the end of the last body section (click on a palette chip). */
+  const appendBlock = (kind: BlockKind) => {
+    if (!doc) return;
+    const next = insertItem(doc, kind);
+    const last = arr(next.body).filter((b) => b.type === "body").at(-1);
+    const row = arr(last?.rows).at(-1);
+    commit(next, { kind: "block", id: String(arr(arr(row?.cells)[0]?.blocks)[0]?.id) });
+  };
+  const addSection = () => {
+    if (!doc) return;
+    const next = insertItem(doc, "band");
+    commit(next, { kind: "band", id: String(arr(next.body).at(-1)?.id) });
+  };
+
+  const labelOf = (d: DragData) => (d.kind === "new" ? (PALETTE.find((x) => x.type === d.type)?.label ?? d.type) : d.kind === "block" ? `Moving ${d.id}` : `Moving row ${d.id}`);
+  const onDragStart = (e: DragStartEvent) => setDragLabel(labelOf(e.active.data.current as DragData));
+  const onDragEnd = (e: DragEndEvent) => {
+    setDragLabel(null);
+    const drag = e.active.data.current as DragData | undefined;
+    const zone = e.over?.data.current as ZoneData | undefined;
+    if (!doc || !drag || !zone) return;
+    if (drag.kind === "new") {
+      const block = makeBlock(doc, drag.type);
+      commit(insertBlock(doc, block, zone.dest), { kind: "block", id: String(block.id) });
+    } else if (drag.kind === "block") {
+      commit(moveBlock(doc, drag.id, zone.dest), { kind: "block", id: drag.id });
+    } else if (drag.kind === "row" && zone.dest.kind === "row") {
+      commit(moveRow(doc, drag.id, zone.dest.at, zone.dest.index), { kind: "row", id: drag.id });
+    }
+  };
+
+  // Column resizing recomputes from the document as it was when the drag began, so it is always consistent.
+  const onResizeStart = () => {
+    resizeBase.current = doc;
+  };
+  const onResize = (rowId: string, cellIndex: number, delta: number) => {
+    if (resizeBase.current) commit(resizeBoundary(resizeBase.current, rowId, cellIndex, delta));
+  };
+
   // Delete, Ctrl+D and Esc, unless the user is typing in a field.
   useEffect(() => {
     if (!doc) return;
@@ -118,10 +165,12 @@ export function Designer({ text, onChange, data, dataLoading, params, problems, 
   }
 
   return (
-    <div className="designer">
+    <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragLabel(null)}>
+    <div className="designer" data-dragging={dragLabel !== null}>
+      <Palette onAdd={appendBlock} onAddSection={addSection} />
       <div className="designer-scroll">
         {dataLoading && !data && <p className="note">Loading data…</p>}
-        <Canvas doc={doc} ctx={ctx} selection={selection} onSelect={setSelection} />
+        <Canvas doc={doc} ctx={ctx} selection={selection} onSelect={setSelection} onResizeStart={onResizeStart} onResize={onResize} />
       </div>
       <Inspector doc={doc} selection={selection} datasetIds={datasetIds} paramNames={paramNames} columnsFor={columnsFor} onCommit={commit} />
       {problems.length > 0 && (
@@ -131,5 +180,7 @@ export function Designer({ text, onChange, data, dataLoading, params, problems, 
         </div>
       )}
     </div>
+    <DragOverlay dropAnimation={null}>{dragLabel && <div className="d-ghost">{dragLabel}</div>}</DragOverlay>
+    </DndContext>
   );
 }

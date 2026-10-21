@@ -240,3 +240,17 @@ export function setPath(input: Json, path: (string | number)[], value: unknown):
   });
   return doc;
 }
+
+/** Where a row sits: its section, its index there, and how many rows the section has. */
+export function findRowPosition(doc: Json, rowId: string): { section: Section; index: number; count: number } | null {
+  const candidates: { section: Section; rows: Json[] }[] = [
+    { section: { section: "header" }, rows: arr(doc.pageHeader) },
+    { section: { section: "footer" }, rows: arr(doc.pageFooter) },
+    ...arr(doc.body).map((b) => ({ section: { section: "band", bandId: String(b.id) } as Section, rows: arr(b.rows) })),
+  ];
+  for (const { section, rows } of candidates) {
+    const index = rows.findIndex((r) => r.id === rowId);
+    if (index >= 0) return { section, index, count: rows.length };
+  }
+  return null;
+}
