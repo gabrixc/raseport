@@ -3,6 +3,8 @@ import { RENDER_URL } from "./supabase.ts";
 
 export interface RenderResult {
   url: string;
+  /** the PDF itself, so it can be handed to another window */
+  blob: Blob;
   ms: number | null;
   bytes: number;
 }
@@ -49,7 +51,7 @@ export async function renderPdf(
   });
   if (!res.ok) throw await toRenderError(res, "Render failed");
   const blob = await res.blob();
-  return { url: URL.createObjectURL(blob), ms: Number(res.headers.get("x-render-ms")) || null, bytes: blob.size };
+  return { url: URL.createObjectURL(blob), blob, ms: Number(res.headers.get("x-render-ms")) || null, bytes: blob.size };
 }
 
 export interface DatasetInfo {

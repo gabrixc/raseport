@@ -17,6 +17,10 @@ import { useTheme } from "./ThemeProvider.tsx";
 import { ProblemList } from "./ProblemList.tsx";
 import type { Problem } from "./problems.ts";
 import { fetchData, renderPdf, RenderError, type DatasetInfo, type RenderResult } from "./render.ts";
+import { PreviewPane, type PreviewTab } from "./preview/PreviewPane.tsx";
+import { PreviewModeSwitch, readPreviewMode, writePreviewMode, type PreviewMode } from "./preview/PreviewModeSwitch.tsx";
+import type { ToMain, ViewerData, ViewerState } from "./preview/protocol.ts";
+import { usePopout } from "./preview/usePopout.ts";
 import { configured, supabase } from "./supabase.ts";
 
 type Saved = { id: string; name: string; updated_at: string };
@@ -48,7 +52,9 @@ export function App() {
 function Workspace({ session }: { session: Session }) {
   const { resolved: theme } = useTheme();
   const [text, setText] = useState(() => loadDraft() ?? exampleJson);
-  const [tab, setTab] = useState<"preview" | "data">("preview");
+  const [tab, setTab] = useState<PreviewTab>("preview");
+  const [previewMode, setPreviewModeState] = useState<PreviewMode>(readPreviewMode);
+  const wasOpen = useRef(false);
   const [mode, setModeState] = useState<EditorMode>(readMode);
   const setMode = (next: EditorMode) => {
     setModeState(next);
@@ -155,6 +161,56 @@ function Workspace({ session }: { session: Session }) {
     ed.revealRangeInCenter(range);
     ed.focus();
   }, []);
+
+  /** Show a problem in the JSON editor (switching to JSON mode first if the designer is showing). */
+  const showProblem = (p: Problem) => {
+    if (mode === "design") {
+      setMode("json");
+      requestAnimationFrame(() => jump(p));
+    } else jump(p);
+  };
+
+  // ---- the preview window ------------------------------------------------------------------------
+  const viewerState = (): ViewerState => ({ pdf: result?.blob ?? null, ms: result?.ms ?? null, bytes: result?.bytes ?? 0, status, error: renderError, missing });
+  const viewerData = (): ViewerData => ({ data: missing.length ? null : data, loading: dataLoading, error: dataError });
+
+  const popout = usePopout((m: ToMain) => {
+    if (m.t === "hello") {
+      popout.post({ t: "state", state: viewerState() });
+      popout.post({ t: "data", data: viewerData() });
+    } else if (m.t === "render") void render();
+    else if (m.t === "refreshData") void loadData();
+    else if (m.t === "jump") {
+      showProblem(m.problem);
+      setNote("Jumped to the problem in the editor window");
+    }
+  });
+
+  useEffect(() => {
+    if (popout.open) popout.post({ t: "state", state: viewerState() });
+  }, [popout.open, result, renderError, status, missing]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (popout.open) popout.post({ t: "data", data: viewerData() });
+  }, [popout.open, data, dataLoading, dataError, missing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If the window is closed while it was the chosen place, take the preview back beside the editor.
+  useEffect(() => {
+    if (popout.open) wasOpen.current = true;
+    else if (wasOpen.current && previewMode === "window") {
+      wasOpen.current = false;
+      setPreviewModeState("docked");
+      writePreviewMode("docked");
+      setNote("Preview window closed; preview is beside the editor again");
+    }
+  }, [popout.open, previewMode]);
+
+  function setPreview(next: PreviewMode) {
+    if (next === "window") {
+      if (!popout.openWindow()) return setNote("Your browser blocked the pop-up. Allow pop-ups for this site, then try again.");
+    } else if (popout.open) popout.closeWindow();
+    setPreviewModeState(next);
+    writePreviewMode(next);
+  }
 
   // Keep an unsaved draft across reloads. Debounced while typing, and flushed when the page is hidden
   // or closed so the last edits are not lost.
@@ -318,12 +374,20 @@ function Workspace({ session }: { session: Session }) {
         ))}
         <span className="spacer" />
         {problems.length > 0 && <span className="note warn">Preview paused: {problems.length} problem{problems.length > 1 ? "s" : ""} in the JSON</span>}
+        {previewMode === "window" && (
+          popout.open ? (
+            <span className="note">Preview is in another window <button className="secondary" onClick={popout.focusWindow}>Show it</button></span>
+          ) : (
+            <button onClick={() => setPreview("window")}>Open preview window</button>
+          )
+        )}
+        <PreviewModeSwitch mode={previewMode} onChange={setPreview} />
         <label className="inline"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Live preview</label>
         <button onClick={render} disabled={!def || missing.length > 0 || status === "rendering"}>{status === "rendering" ? "Rendering…" : "Render"}</button>
         {result && <span className="note">{result.ms ?? "?"} ms · {(result.bytes / 1024).toFixed(0)} KB</span>}
       </div>
 
-      <main>
+      <main data-preview={previewMode}>
         <section className="pane">
           <div className="json-pane" hidden={mode !== "json"}>
             <div className="editor-wrap">
@@ -357,29 +421,27 @@ function Workspace({ session }: { session: Session }) {
               onUndo={() => editorRef.current?.trigger("designer", "undo", null)}
               onRedo={() => editorRef.current?.trigger("designer", "redo", null)}
               onSwitchToJson={() => setMode("json")}
-              onShowProblem={(p) => {
-                setMode("json");
-                requestAnimationFrame(() => jump(p));
-              }}
+              onShowProblem={showProblem}
             />
           )}
         </section>
-        <section className="pane preview">
-          <div className="tabs" role="tablist">
-            <button role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")}>Preview</button>
-            <button role="tab" aria-selected={tab === "data"} onClick={() => setTab("data")}>Data</button>
-          </div>
-          <div className="preview-body" hidden={tab !== "preview"}>
-            {renderError && (
-              <div className="error-box">
-                {renderError.problems.length ? <ProblemList problems={renderError.problems} onJump={jump} /> : <strong>{renderError.message}</strong>}
-                {renderError.detail && <pre>{renderError.detail}</pre>}
-              </div>
-            )}
-            {result ? <iframe title="Report preview" src={result.url} /> : <p className="empty">{missing.length ? `Set ${missing.join(", ")} to render.` : "Fix any problems on the left, then Render."}</p>}
-          </div>
-          {tab === "data" && <DataPanel datasets={missing.length ? null : data} loading={dataLoading} error={dataError} onJump={jump} onRefresh={loadData} />}
-        </section>
+        {previewMode === "docked" && (
+          <section className="pane preview">
+            <PreviewPane
+              tab={tab}
+              onTab={setTab}
+              pdfUrl={result?.url ?? null}
+              error={renderError}
+              missing={missing}
+              data={missing.length ? null : data}
+              dataLoading={dataLoading}
+              dataError={dataError}
+              onRefreshData={loadData}
+              onJump={showProblem}
+              emptyHint="Fix any problems on the left, then Render."
+            />
+          </section>
+        )}
       </main>
     </div>
   );

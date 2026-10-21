@@ -23,7 +23,7 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-
 .mode-switch button { padding: 5px 14px; font-size: 13px; }
 .problems { margin: 0; padding: 8px 12px; max-height: 30%; overflow: auto; background: color-mix(in srgb, var(--err) 12%, var(--panel)); color: var(--err); font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
 .preview { border-right: 0; position: relative; }
-.preview iframe { flex: 1; width: 100%; border: 0; background: #888; }
+.preview-body iframe { flex: 1; width: 100%; border: 0; background: #888; }
 .empty { margin: auto; color: color-mix(in srgb, var(--fg) 50%, transparent); }
 .error-box { padding: 10px 12px; background: color-mix(in srgb, var(--err) 12%, var(--panel)); color: var(--err); }
 .error-box pre { margin: 6px 0 0; max-height: 160px; overflow: auto; white-space: pre-wrap; font: 12px/1.4 ui-monospace, monospace; }
@@ -63,3 +63,15 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-
 .login-theme { position: fixed; top: 12px; right: 12px; }
 .note.warn { color: var(--err); }
 header select { max-width: 12rem; text-overflow: ellipsis; }
+
+/* ---- preview placement ---------------------------------------------------------------------------- */
+main[data-preview="window"], main[data-preview="hidden"] { grid-template-columns: minmax(0, 1fr); }
+main[data-preview="window"] .pane, main[data-preview="hidden"] .pane { border-right: 0; }
+.preview-switch button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; font-size: 13px; }
+.tabs .spacer { flex: 1; }
+
+/* ---- the preview window ---------------------------------------------------------------------------- */
+.popout { height: 100%; display: flex; flex-direction: column; background: var(--panel); }
+.popout-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.popout-banner { margin: 0; padding: 8px 12px; background: color-mix(in srgb, var(--err) 12%, var(--panel)); color: var(--err); font-size: 13px; }
+.popout-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }

@@ -199,11 +199,13 @@ export function Designer({ text, onChange, data, dataLoading, params, problems, 
     <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragLabel(null)}>
     <div className="designer" data-dragging={dragLabel !== null}>
       <Palette onAdd={appendBlock} onAddSection={addSection} onUndo={onUndo} onRedo={onRedo} />
-      <div className="designer-scroll">
-        {dataLoading && !data && <p className="note">Loading data…</p>}
-        <Canvas doc={doc} ctx={ctx} selection={selection} onSelect={setSelection} onResizeStart={onResizeStart} onResize={onResize} />
+      <div className="designer-body">
+        <div className="designer-scroll">
+          {dataLoading && !data && <p className="note">Loading data…</p>}
+          <Canvas doc={doc} ctx={ctx} selection={selection} onSelect={setSelection} onResizeStart={onResizeStart} onResize={onResize} />
+        </div>
+        <Inspector doc={doc} selection={selection} datasetIds={datasetIds} paramNames={paramNames} columnsFor={columnsFor} onCommit={commit} reportExtras={<ReportPanel doc={doc} catalog={catalog} onCommit={commit} />} />
       </div>
-      <Inspector doc={doc} selection={selection} datasetIds={datasetIds} paramNames={paramNames} columnsFor={columnsFor} onCommit={commit} reportExtras={<ReportPanel doc={doc} catalog={catalog} onCommit={commit} />} />
       {problems.length > 0 && (
         <div className="problems">
           <p className="note warn">{problems.length} problem{problems.length > 1 ? "s" : ""} — click one to fix it in JSON mode</p>

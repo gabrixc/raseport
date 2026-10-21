@@ -135,3 +135,14 @@ button.d-section-label:hover { color: var(--accent); }
 .i-field input[aria-invalid="true"], .i-row-line input[aria-invalid="true"] { border-color: var(--err); }
 .i-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 14px; }
 .d-palette .spacer { flex: 1; }
+
+/* ---- layout: with room, the inspector is a side panel and the canvas keeps the full height ---------- */
+.designer { container-type: inline-size; container-name: designer; }
+.designer-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.designer-body > .designer-scroll { flex: 1; min-height: 0; }
+@container designer (min-width: 860px) {
+  .designer-body { flex-direction: row; }
+  .designer-body > .inspector { flex: 0 0 clamp(320px, 34%, 420px); max-height: none; min-height: 0; border-top: 0; border-left: 1px solid var(--line); }
+  .designer-body > .inspector .inspector-body { flex: 1; min-height: 0; }
+  .d-page { max-width: 900px; }
+}

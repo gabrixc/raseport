@@ -47,6 +47,10 @@ and Ctrl+Z / Ctrl+Shift+Z (or the Undo / Redo buttons) step through one shared h
 - **Data sources** are picked by name. The list comes from the database's `report_catalog()`, which lists every `report_*` function
   with its arguments; pick one and the parameters it needs are created and mapped for you. Give a function a friendly name with
   `comment on function report_x(...) is 'Sales by region for a month';`.
+- **Room to work:** the **Beside | Window | Hide** switch in the toolbar decides where the PDF preview and the Data tab live. *Window* opens them in
+  their own browser window (it stays live: it updates as you edit, and its Render button, Refresh and problem links drive the editor), which gives the
+  designer the full width. Closing that window puts the preview back beside the editor, and the choice is remembered. When the designer is wide enough,
+  the inspector becomes a side panel so the canvas keeps its full height; when it is narrow it sits below. Allow pop-ups for the site for *Window* to work.
 - New tables, charts and KPIs start with real columns (a chart picks a category with few distinct values).
 - **New** starts a blank report.
 
