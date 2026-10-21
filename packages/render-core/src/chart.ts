@@ -56,7 +56,11 @@ export function chartSvg(rows: Row[], spec: ChartSpec, env: FormatEnv, fontFamil
   const W = Math.max(260, Math.round((FULL_WIDTH * span) / 12));
   const pts = points(rows, spec, env);
   const H = spec.height;
-  const color = (i: number) => spec.series[i]?.color ?? PALETTE[i % PALETTE.length]!;
+  // Only plain hex colors reach the SVG, whatever the caller passes: it is embedded in pages and PDFs.
+  const color = (i: number) => {
+    const c = spec.series[i]?.color;
+    return c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : PALETTE[i % PALETTE.length]!;
+  };
   const legendH = spec.series.length > 1 ? 20 : 0;
   const titleH = spec.title ? 26 : 0;
   const m = { l: 64, r: 12, t: 10 + titleH + legendH, b: 34 };

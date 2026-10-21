@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { createApp, MAX_BODY_BYTES } from "../src/app.ts";
 
-const fakeClient = { auth: { getUser: async () => ({ data: { user: { id: "u" } }, error: null }) } } as unknown as SupabaseClient;
+const rows = Array.from({ length: 30 }, (_, i) => ({ id: i, region: "East", customer: { name: `C${i}` } }));
+const fakeClient = {
+  auth: { getUser: async () => ({ data: { user: { id: "u" } }, error: null }) },
+  rpc: () => ({ range: async (from: number, to: number) => ({ data: rows.slice(from, to + 1), error: null }) }),
+} as unknown as SupabaseClient;
 const app = createApp({
   clientFor: () => fakeClient,
   compile: async () => Buffer.from("%PDF-fake"),
@@ -52,6 +56,14 @@ describe("error responses", () => {
   it("rejects oversized bodies with 413", async () => {
     const res = await post("/render", { ...base, name: "x".repeat(MAX_BODY_BYTES) });
     expect(res.status).toBe(413);
+  });
+
+  it("returns every row and the flattened columns from /data", async () => {
+    const def = { ...base, datasets: [{ id: "d1", source: { kind: "rpc", name: "report_x" } }] };
+    const body = (await (await post("/data", def)).json()) as { datasets: { id: string; total: number; rows: unknown[]; columns: { path: string }[] }[] };
+    expect(body.datasets[0]).toMatchObject({ id: "d1", total: 30 });
+    expect(body.datasets[0]!.rows).toHaveLength(30);
+    expect(body.datasets[0]!.columns.map((c) => c.path)).toEqual(["id", "region", "customer.name"]);
   });
 
   it("renders a valid definition", async () => {

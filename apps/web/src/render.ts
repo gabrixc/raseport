@@ -56,7 +56,8 @@ export interface DatasetInfo {
   id: string;
   total: number;
   columns: { path: string; type: string; example: unknown }[];
-  sample: Record<string, unknown>[];
+  /** all rows up to the server cap (5000); `total` says how many exist */
+  rows: Record<string, unknown>[];
 }
 
 export async function fetchData(body: { definition: unknown; params: Record<string, unknown> }, token: string, signal: AbortSignal): Promise<DatasetInfo[]> {

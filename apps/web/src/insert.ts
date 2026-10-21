@@ -30,6 +30,8 @@ function usedIds(node: unknown, acc = new Set<string>()): Set<string> {
   return acc;
 }
 
+export const idPrefix = (type: string): string => (type === "pageBreak" ? "pb" : type.slice(0, 2));
+
 export function uniqueId(doc: unknown, prefix: string): string {
   const used = usedIds(doc);
   let n = 1;
@@ -37,9 +39,12 @@ export function uniqueId(doc: unknown, prefix: string): string {
   return `${prefix}${n}`;
 }
 
-function block(doc: Json, kind: Exclude<InsertKind, "band" | "dataset" | "param">): Json {
+export type BlockKind = Exclude<InsertKind, "band" | "dataset" | "param">;
+
+/** A new block with sensible defaults and an id that is unique in `doc` (it is not inserted anywhere). */
+export function makeBlock(doc: Json, kind: BlockKind): Json {
   const ds = (doc.datasets as Json[] | undefined)?.[0]?.id ?? "data";
-  const id = uniqueId(doc, kind === "pageBreak" ? "pb" : kind.slice(0, 2));
+  const id = uniqueId(doc, idPrefix(kind));
   switch (kind) {
     case "text":
       return { type: "text", id, style: "body", value: ["New text"] };
@@ -80,7 +85,7 @@ export function insertItem(input: Json, kind: InsertKind): Json {
     band = { id: uniqueId(doc, "band"), type: "body", rows: [] };
     doc.body.push(band);
   }
-  const b = block(doc, kind);
+  const b = makeBlock(doc, kind);
   band.rows.push({ id: uniqueId(doc, "row"), cells: [{ span: 12, blocks: [b] }] });
   return doc;
 }

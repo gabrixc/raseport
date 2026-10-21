@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import exampleJson from "../../../examples/sales-report.json?raw";
 import { DataPanel } from "./DataPanel.tsx";
 import { INSERT_LABELS, insertItem, type InsertKind } from "./insert.ts";
+import { Designer } from "./designer/Designer.tsx";
 import { Login } from "./Login.tsx";
+import { ModeSwitch, readMode, writeMode, type EditorMode } from "./ModeSwitch.tsx";
 import { listRemovable, removeItem, type RemoveGroup } from "./remove.ts";
 import { check, lenientParams } from "./check.ts";
 import { locateProblem } from "./locate.ts";
@@ -46,6 +48,11 @@ function Workspace({ session }: { session: Session }) {
   const { resolved: theme } = useTheme();
   const [text, setText] = useState(() => loadDraft() ?? exampleJson);
   const [tab, setTab] = useState<"preview" | "data">("preview");
+  const [mode, setModeState] = useState<EditorMode>(readMode);
+  const setMode = (next: EditorMode) => {
+    setModeState(next);
+    writeMode(next);
+  };
   const [data, setData] = useState<DatasetInfo[] | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<{ message: string; problems: Problem[] } | null>(null);
@@ -240,6 +247,7 @@ function Workspace({ session }: { session: Session }) {
     <div className="app">
       <header>
         <strong>Report editor</strong>
+        <ModeSwitch mode={mode} onChange={setMode} />
         <select value={currentId ?? ""} onChange={(e) => open(e.target.value)} aria-label="Saved reports">
           <option value="">Unsaved / example</option>
           {saved.map((s) => (
@@ -247,6 +255,7 @@ function Workspace({ session }: { session: Session }) {
           ))}
         </select>
         <button onClick={save} disabled={!def}>{currentId ? "Save" : "Save as new"}</button>
+        {mode === "json" && <>
         <select value="" onChange={(e) => e.target.value && insert(e.target.value as InsertKind)} aria-label="Insert">
           <option value="">Insert…</option>
           <optgroup label="Block (new row)">
@@ -273,6 +282,7 @@ function Workspace({ session }: { session: Session }) {
           })}
         </select>
         <button className="secondary" onClick={() => editorRef.current?.getAction("editor.action.formatDocument")?.run()}>Format</button>
+        </>}
         <span className="spacer" />
         {note && <span className="note">{note}</span>}
         <ThemeToggle />
@@ -304,22 +314,41 @@ function Workspace({ session }: { session: Session }) {
 
       <main>
         <section className="pane">
-          <Editor
-            path="report.json"
-            language="json"
-            value={text}
-            onChange={(v: string | undefined) => setText(v ?? "")}
-            onMount={(ed, m) => {
-              editorRef.current = ed;
-              ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => saveRef.current());
-            }}
-            options={{ quickSuggestions: { strings: true, other: true, comments: false }, minimap: { enabled: false }, fontSize: 13, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true }}
-            theme={theme === "dark" ? "vs-dark" : "vs"}
-          />
-          {problems.length > 0 && (
-            <div className="problems">
-              <ProblemList problems={problems} onJump={jump} />
+          <div className="json-pane" hidden={mode !== "json"}>
+            <div className="editor-wrap">
+              <Editor
+                path="report.json"
+                language="json"
+                value={text}
+                onChange={(v: string | undefined) => setText(v ?? "")}
+                onMount={(ed, m) => {
+                  editorRef.current = ed;
+                  ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => saveRef.current());
+                }}
+                options={{ quickSuggestions: { strings: true, other: true, comments: false }, minimap: { enabled: false }, fontSize: 13, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true }}
+                theme={theme === "dark" ? "vs-dark" : "vs"}
+              />
             </div>
+            {problems.length > 0 && (
+              <div className="problems">
+                <ProblemList problems={problems} onJump={jump} />
+              </div>
+            )}
+          </div>
+          {mode === "design" && (
+            <Designer
+              text={text}
+              onChange={setText}
+              data={missing.length ? null : data}
+              dataLoading={dataLoading}
+              params={effectiveParams}
+              problems={problems}
+              onSwitchToJson={() => setMode("json")}
+              onShowProblem={(p) => {
+                setMode("json");
+                requestAnimationFrame(() => jump(p));
+              }}
+            />
           )}
         </section>
         <section className="pane preview">

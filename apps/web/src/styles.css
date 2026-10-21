@@ -16,7 +16,11 @@ header, .toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 1
 .note { color: color-mix(in srgb, var(--fg) 60%, transparent); font-size: 13px; }
 main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; }
 .pane { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); }
-.pane:not(.preview) > :first-child { flex: 1; min-height: 0; }
+.pane:not(.preview) > .json-pane, .pane:not(.preview) > .designer { flex: 1; min-height: 0; }
+.json-pane { display: flex; flex-direction: column; }
+.json-pane[hidden] { display: none; }
+.editor-wrap { flex: 1; min-height: 0; }
+.mode-switch button { padding: 5px 14px; font-size: 13px; }
 .problems { margin: 0; padding: 8px 12px; max-height: 30%; overflow: auto; background: color-mix(in srgb, var(--err) 12%, var(--panel)); color: var(--err); font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
 .preview { border-right: 0; position: relative; }
 .preview iframe { flex: 1; width: 100%; border: 0; background: #888; }

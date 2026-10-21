@@ -91,4 +91,11 @@ describe("charts", () => {
     expect(niceTicks(1234)).toEqual([0, 250, 500, 750, 1000, 1250]);
     expect(niceTicks(0)).toEqual([0, 1]);
   });
+
+  it("ignores series colors that are not plain hex", async () => {
+    const { chartSvg } = await import("../src/chart.ts");
+    const svg = chartSvg([{ a: "x", b: 1 }], { kind: "bar", x: "a", series: [{ field: "b", color: 'red" onload="alert(1)' }], format: "decimal", height: 200 }, { locale: "en-US", currency: "USD" });
+    expect(svg).not.toContain("onload");
+    expect(svg).toContain('fill="#0b5fff"');
+  });
 });

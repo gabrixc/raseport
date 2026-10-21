@@ -10,7 +10,8 @@ import { describeRows } from "./describe.ts";
 import { BadRequest, resolveParams } from "./params.ts";
 import { TypstError } from "./typst-runner.ts";
 
-const SAMPLE_ROWS = 25;
+/** The designer draws KPIs and charts from these rows, so they must be the real data, not a sample. */
+export const MAX_DESIGN_ROWS = 5000;
 export const MAX_BODY_BYTES = 1024 * 1024;
 
 export interface AppDeps {
@@ -93,13 +94,13 @@ export function createApp(deps: AppDeps) {
     }),
   );
 
-  /** Sample rows and addressable columns per dataset, so authors can see real field paths. */
+  /** Rows and addressable columns per dataset, so authors can see real field paths and the designer can draw real data. */
   app.post("/data", (c) =>
     withReport(c, async ({ def, data }) =>
       c.json({
         datasets: def.datasets.map((ds) => {
           const rows = data[ds.id] ?? [];
-          return { id: ds.id, total: rows.length, columns: describeRows(rows), sample: rows.slice(0, SAMPLE_ROWS) };
+          return { id: ds.id, total: rows.length, columns: describeRows(rows), rows: rows.slice(0, MAX_DESIGN_ROWS) };
         }),
       }),
     ),

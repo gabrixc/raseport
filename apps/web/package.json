@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@raseport/render-core": "workspace:*",
     "@raseport/schema": "workspace:*",
     "@supabase/supabase-js": "^2.50.0",
     "jsonc-parser": "^3.3.1",

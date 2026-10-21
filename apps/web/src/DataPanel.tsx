@@ -12,6 +12,8 @@ function pick(row: Record<string, unknown>, path: string): unknown {
   return cur;
 }
 
+const SAMPLE_ROWS = 25;
+
 const show = (v: unknown) => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
 export function DataPanel({ datasets, loading, error, onJump, onRefresh }: { datasets: DatasetInfo[] | null; loading: boolean; error: { message: string; problems: Problem[] } | null; onJump: (p: Problem) => void; onRefresh: () => void }) {
@@ -53,13 +55,13 @@ export function DataPanel({ datasets, loading, error, onJump, onRefresh }: { dat
                 <tr>{ds.columns.map((c) => <th key={c.path}>{c.path}</th>)}</tr>
               </thead>
               <tbody>
-                {ds.sample.map((row, i) => (
+                {ds.rows.slice(0, SAMPLE_ROWS).map((row, i) => (
                   <tr key={i}>{ds.columns.map((c) => <td key={c.path} className={c.type === "number" ? "num" : ""}>{show(pick(row, c.path))}</td>)}</tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {ds.total > ds.sample.length && <p className="note">Showing the first {ds.sample.length} of {ds.total.toLocaleString()} rows.</p>}
+          {ds.total > SAMPLE_ROWS && <p className="note">Showing the first {SAMPLE_ROWS} of {ds.total.toLocaleString()} rows.</p>}
         </section>
       ))}
     </div>
