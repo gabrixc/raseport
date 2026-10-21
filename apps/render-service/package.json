@@ -1,0 +1,18 @@
+{
+  "name": "@raseport/render-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@raseport/render-core": "workspace:*",
+    "@raseport/schema": "workspace:*",
+    "@supabase/supabase-js": "^2.50.0",
+    "hono": "^4.8.0"
+  }
+}

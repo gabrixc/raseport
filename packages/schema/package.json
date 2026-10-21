@@ -1,0 +1,9 @@
+{
+  "name": "@raseport/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run --passWithNoTests", "typecheck": "tsc --noEmit" },
+  "dependencies": { "zod": "^4.0.0" }
+}

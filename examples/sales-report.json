@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "name": "Sales by region",
+  "locale": "en-US",
+  "currency": "USD",
+  "params": [
+    {
+      "name": "month",
+      "type": "date",
+      "required": true
+    }
+  ],
+  "datasets": [
+    {
+      "id": "sales",
+      "source": {
+        "kind": "rpc",
+        "name": "report_sales_by_region"
+      },
+      "args": {
+        "p_month": {
+          "$param": "month"
+        }
+      }
+    }
+  ],
+  "pageFooter": [
+    {
+      "id": "f1",
+      "cells": [
+        {
+          "span": 8,
+          "blocks": [
+            {
+              "type": "text",
+              "id": "ft",
+              "style": "muted",
+              "value": [
+                "Sales by region"
+              ]
+            }
+          ]
+        },
+        {
+          "span": 4,
+          "blocks": [
+            {
+              "type": "text",
+              "id": "fp",
+              "style": "muted",
+              "align": "right",
+              "value": [
+                "Page ",
+                {
+                  "$builtin": "page"
+                },
+                " of ",
+                {
+                  "$builtin": "pages"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "body": [
+    {
+      "id": "title",
+      "type": "title",
+      "rows": [
+        {
+          "id": "r1",
+          "cells": [
+            {
+              "span": 12,
+              "blocks": [
+                {
+                  "type": "text",
+                  "id": "h",
+                  "style": "h1",
+                  "value": [
+                    "Sales report - ",
+                    {
+                      "$param": "month"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "r2",
+          "cells": [
+            {
+              "span": 4,
+              "blocks": [
+                {
+                  "type": "kpi",
+                  "id": "k1",
+                  "label": "Total revenue",
+                  "format": "currency",
+                  "value": {
+                    "$agg": {
+                      "fn": "sum",
+                      "dataset": "sales",
+                      "field": "amount"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "span": 4,
+              "blocks": [
+                {
+                  "type": "kpi",
+                  "id": "k2",
+                  "label": "Orders",
+                  "format": "integer",
+                  "value": {
+                    "$agg": {
+                      "fn": "count",
+                      "dataset": "sales"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "span": 4,
+              "blocks": [
+                {
+                  "type": "kpi",
+                  "id": "k3",
+                  "label": "Average order",
+                  "format": "currency",
+                  "value": {
+                    "$agg": {
+                      "fn": "avg",
+                      "dataset": "sales",
+                      "field": "amount"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "charts",
+      "type": "body",
+      "dataset": "sales",
+      "rows": [
+        {
+          "id": "rc",
+          "cells": [
+            {
+              "span": 6,
+              "blocks": [
+                {
+                  "type": "chart",
+                  "id": "c1",
+                  "kind": "bar",
+                  "dataset": "sales",
+                  "title": "Revenue by region",
+                  "x": "region",
+                  "aggregate": "sum",
+                  "format": "integer",
+                  "series": [
+                    {
+                      "field": "amount",
+                      "label": "Revenue"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "span": 6,
+              "blocks": [
+                {
+                  "type": "chart",
+                  "id": "c2",
+                  "kind": "line",
+                  "dataset": "sales",
+                  "title": "Daily revenue",
+                  "x": "ordered_on",
+                  "aggregate": "sum",
+                  "format": "integer",
+                  "series": [
+                    {
+                      "field": "amount",
+                      "label": "Revenue"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "detail",
+      "type": "body",
+      "dataset": "sales",
+      "rows": [
+        {
+          "id": "r3",
+          "cells": [
+            {
+              "span": 12,
+              "blocks": [
+                {
+                  "type": "table",
+                  "id": "t1",
+                  "dataset": "sales",
+                  "groupBy": "region",
+                  "groupSubtotals": true,
+                  "grandTotal": true,
+                  "columns": [
+                    {
+                      "field": "order_no",
+                      "label": "Order",
+                      "width": 1
+                    },
+                    {
+                      "field": "ordered_on",
+                      "label": "Date",
+                      "format": "date",
+                      "width": 1.2
+                    },
+                    {
+                      "field": "customer.name",
+                      "label": "Customer",
+                      "width": 2
+                    },
+                    {
+                      "field": "customer.tier",
+                      "label": "Tier",
+                      "width": 1
+                    },
+                    {
+                      "field": "amount",
+                      "label": "Amount",
+                      "format": "currency",
+                      "aggregate": "sum",
+                      "width": 1.3
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "empty",
+      "type": "noData",
+      "dataset": "sales",
+      "rows": [
+        {
+          "id": "r4",
+          "cells": [
+            {
+              "span": 12,
+              "blocks": [
+                {
+                  "type": "text",
+                  "id": "nd",
+                  "style": "muted",
+                  "value": [
+                    "No sales for this period."
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
