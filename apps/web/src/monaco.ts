@@ -14,6 +14,8 @@ loader.config({ monaco });
 monaco.json.jsonDefaults.setDiagnosticsOptions({
   validate: true,
   allowComments: false,
+  // Schema violations are real errors (red), matching the problem list, not the default yellow warnings.
+  schemaValidation: "error",
   schemas: [{ uri: "https://raseport.local/report.schema.json", fileMatch: ["*"], schema: reportJsonSchema() }],
 });
 

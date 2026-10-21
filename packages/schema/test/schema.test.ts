@@ -42,3 +42,32 @@ describe("dataset RPC names", () => {
     expect(() => parseDefinition(withRpc(name))).toThrow(/report_ followed by lowercase letters/);
   });
 });
+
+describe("editor hover metadata", () => {
+  const props = (reportJsonSchema() as any).properties; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const dataset = props.datasets.items.properties;
+
+  it("gives the RPC name a specific squiggle message and a description", () => {
+    expect(dataset.source.properties.name.patternErrorMessage).toMatch(/report_ followed by lowercase letters/);
+    expect(dataset.source.properties.name.description).toMatch(/Postgres function.*report_sales_by_region/);
+    expect(dataset.source.properties.name.description).not.toContain("`");
+    expect(dataset.source.properties.name.markdownDescription).toContain("`report_sales_by_region`");
+  });
+
+  it("explains datasets, ids and args on hover", () => {
+    expect(dataset.id.patternErrorMessage).toMatch(/lowercase letter/);
+    expect(dataset.id.description).toMatch(/refer to this dataset/);
+    expect(dataset.args.description).toMatch(/\$param/);
+  });
+
+  it("uses the same specific messages when validating", () => {
+    const bad = { schemaVersion: 1, name: "x", datasets: [{ id: "Sales", source: { kind: "rpc", name: "report_x" } }], theme: { accent: "blue" }, body: [] };
+    try {
+      parseDefinition(bad);
+      throw new Error("should not parse");
+    } catch (e) {
+      const messages = (e as { issues: { message: string }[] }).issues.map((i) => i.message);
+      expect(messages).toEqual(expect.arrayContaining([expect.stringMatching(/lowercase letter/), expect.stringMatching(/6-digit hex/)]));
+    }
+  });
+});

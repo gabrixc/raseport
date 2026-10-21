@@ -1,9 +1,19 @@
 import { z } from "zod";
 
+// Hover text in the editor comes from `description`; `patternErrorMessage` replaces Monaco's generic
+// "String does not match the pattern of ..." on the squiggle. Both are ignored by validation itself.
+const IDENT = /^[a-z][a-z0-9_]*$/;
+const IDENT_MESSAGE = "Must start with a lowercase letter and contain only lowercase letters, digits or underscores";
+const ident = (what: string) => z.string().regex(IDENT, IDENT_MESSAGE).meta({ description: `${what} Lowercase letters, digits and underscores, starting with a letter.`, patternErrorMessage: IDENT_MESSAGE });
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const HEX_MESSAGE = "Use a 6-digit hex color like #0b5fff";
+const hexColor = (what: string) => z.string().regex(HEX, HEX_MESSAGE).meta({ description: what, patternErrorMessage: HEX_MESSAGE });
+
 // ---- Bindings -------------------------------------------------------------
 // Bindings are structured, never strings parsed at render time.
 
-export const ParamRef = z.object({ $param: z.string() }).strict();
+export const ParamRef = z.object({ $param: z.string().meta({ description: "Name of a report param declared in `params`." }) }).strict().meta({ description: "Value of a report param, set when the report runs." });
 export const AggFn = z.enum(["sum", "avg", "count", "min", "max", "first", "last"]);
 export const AggRef = z
   .object({
@@ -11,7 +21,7 @@ export const AggRef = z
       fn: AggFn,
       dataset: z.string(),
       // dotted path into a row (jsonb friendly); optional for count
-      field: z.string().optional(),
+      field: z.string().optional().meta({ description: "Column to aggregate, e.g. `amount` or `customer.age` (dotted paths reach into jsonb). Not needed for `count`." }),
     }),
   })
   .strict();
@@ -43,7 +53,7 @@ const TextBlock = z.object({
 
 const Column = z.object({
   /** dotted path into a row, e.g. "meta.address.city" */
-  field: z.string(),
+  field: z.string().meta({ description: "Column to show, e.g. `amount` or `customer.name` (dotted paths reach into jsonb). Autocomplete lists the real columns." }),
   label: z.string(),
   format: Format.default("text"),
   align: z.enum(["left", "center", "right"]).optional(),
@@ -59,7 +69,7 @@ const TableBlock = z.object({
   dataset: z.string(),
   columns: z.array(Column).min(1),
   /** Rows must already be sorted by this field (do it in the RPC). */
-  groupBy: z.string().optional(),
+  groupBy: z.string().optional().meta({ description: "Column to group rows by. The RPC must already return rows sorted by this column." }),
   groupSubtotals: z.boolean().default(false),
   grandTotal: z.boolean().default(false),
   zebra: z.boolean().default(true),
@@ -76,7 +86,7 @@ const KpiBlock = z.object({
 const ChartSeries = z.object({
   field: z.string(),
   label: z.string().optional(),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  color: hexColor("Series color; defaults to the chart palette.").optional(),
 });
 
 const ChartBlock = z.object({
@@ -89,7 +99,7 @@ const ChartBlock = z.object({
   x: z.string(),
   series: z.array(ChartSeries).min(1).max(6),
   /** when set, rows are grouped by x and each series is aggregated with this function */
-  aggregate: AggFn.optional(),
+  aggregate: AggFn.optional().meta({ description: "Group rows by `x` and combine each series with this function (sum, avg, count, ...). Leave out to plot rows as they are." }),
   /** value-axis number format */
   format: Format.default("decimal"),
   /** chart height in SVG units; width is fixed at 640 and scales to the cell */
@@ -116,7 +126,7 @@ export type Column = z.infer<typeof Column>;
 // ---- Layout: bands -> 12-column rows -> cells -> blocks -----------------------
 
 export const Cell = z.object({
-  span: z.number().int().min(1).max(12).default(12),
+  span: z.number().int().min(1).max(12).default(12).meta({ description: "Width in a 12-column grid: 12 is full width, 6 is half." }),
   blocks: z.array(Block),
 });
 export const Row = z.object({ id: z.string(), cells: z.array(Cell).min(1) });
@@ -137,20 +147,24 @@ export const ColumnType = z.enum(["text", "number", "date", "bool", "json"]);
 
 /** The render service only calls functions named report_*, so the editor can flag anything else immediately. */
 export const RPC_NAME = /^report_[a-z0-9_]+$/;
-const RpcName = z.string().regex(RPC_NAME, "RPC name must be report_ followed by lowercase letters, digits or underscores");
+const RPC_MESSAGE = "RPC name must be report_ followed by lowercase letters, digits or underscores";
+const RpcName = z.string().regex(RPC_NAME, RPC_MESSAGE).meta({
+  description: "Postgres function the data comes from, e.g. `report_sales_by_region`. Its name must start with `report_`, and it must return rows in a stable order.",
+  patternErrorMessage: RPC_MESSAGE,
+});
 
 export const Dataset = z.object({
-  id: z.string().regex(/^[a-z][a-z0-9_]*$/),
+  id: ident("Name other blocks use to refer to this dataset."),
   source: z.object({ kind: z.literal("rpc"), name: RpcName }),
   /** values are literals or {$param} */
-  args: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), ParamRef])).default({}),
+  args: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), ParamRef])).default({}).meta({ description: "Arguments passed to the RPC by name. Each value is a literal or {\"$param\": \"paramName\"}. The names must match the function's parameters." }),
   /** optional declared types, used by editors and for validation */
   columns: z.record(z.string(), ColumnType).optional(),
 });
 export type Dataset = z.infer<typeof Dataset>;
 
 export const Param = z.object({
-  name: z.string().regex(/^[a-z][a-z0-9_]*$/),
+  name: ident("Name of the param; reference it with {\"$param\": \"name\"}."),
   type: z.enum(["text", "number", "date", "bool"]),
   required: z.boolean().default(false),
   default: z.union([z.string(), z.number(), z.boolean()]).optional(),
@@ -174,7 +188,7 @@ export const ReportDefinition = z.object({
     .object({
       font: z.string().default("Liberation Sans"),
       baseSize: z.string().default("10pt"),
-      accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#0b5fff"),
+      accent: hexColor("Accent color used for headings, table headers and KPI values.").default("#0b5fff"),
     })
     .default({ font: "Liberation Sans", baseSize: "10pt", accent: "#0b5fff" }),
   params: z.array(Param).default([]),
@@ -248,8 +262,26 @@ export function assertReferences(def: ParsedReport): void {
   if (issues.length) throw new DefinitionError(issues);
 }
 
+/**
+ * Descriptions are written with `code` backticks. The JSON language service renders `markdownDescription` as
+ * markdown in hovers, so move the original there and leave a backtick-free plain `description` behind.
+ */
+function addMarkdownDescriptions(node: unknown): void {
+  if (Array.isArray(node)) return node.forEach(addMarkdownDescriptions);
+  if (!node || typeof node !== "object") return;
+  const o = node as Record<string, unknown>;
+  if (typeof o.description === "string" && o.description.includes("`")) {
+    o.markdownDescription = o.description;
+    o.description = o.description.replaceAll("`", "");
+  }
+  Object.values(o).forEach(addMarkdownDescriptions);
+}
+
 /** JSON Schema (draft-07, which Monaco supports best) for editors. Describes what authors write, so defaults are optional. */
 export function reportJsonSchema(): Record<string, unknown> {
-  return z.toJSONSchema(ReportDefinition, { io: "input", unrepresentable: "any", target: "draft-7" }) as Record<string, unknown>;
+  const schema = z.toJSONSchema(ReportDefinition, { io: "input", unrepresentable: "any", target: "draft-7" }) as Record<string, unknown>;
+  addMarkdownDescriptions(schema);
+  return schema;
 }
+
 export { ZodError } from "zod";

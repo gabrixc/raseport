@@ -54,8 +54,10 @@ Sign in (or create an account), edit the JSON on the left (autocomplete and vali
 shared schema) and set the report params; the PDF preview refreshes as you type.
 
 - **Insert** adds a block (as a new row in the last body band), band, dataset or param, with a fresh id.
+- **Remove** deletes a dataset, param, band or block (blocks leave no empty rows behind). Anything that still used a removed dataset or param is listed and shows up as a clickable problem. Ctrl+Z undoes a removal.
 - **Data** tab shows each dataset's real columns, including nested jsonb paths (click one to copy it), and sample rows.
 - **Autocomplete** suggests real column paths (including nested jsonb) for `field`, `x`, `groupBy` and series fields, plus dataset ids and param names. Column lists come from the Data tab's loaded datasets (or the dataset's declared `columns` when no data is loaded).
+- **Hover a squiggle** for a specific message plus a short explanation; hover any field name (`groupBy`, `aggregate`, `span`, dataset `args`, ...) for what it does.
 - **Click a problem to jump** to it: JSON syntax errors, schema and reference errors, and server-side dataset errors all select the offending spot in the editor.
 - **Format** pretty-prints the JSON; **Ctrl+S** saves to `report_definitions` (row-level security applies).
 - An unsaved draft is kept in the browser across reloads.

@@ -5,6 +5,7 @@ import exampleJson from "../../../examples/sales-report.json?raw";
 import { DataPanel } from "./DataPanel.tsx";
 import { INSERT_LABELS, insertItem, type InsertKind } from "./insert.ts";
 import { Login } from "./Login.tsx";
+import { listRemovable, removeItem, type RemoveGroup } from "./remove.ts";
 import { check, lenientParams } from "./check.ts";
 import { locateProblem } from "./locate.ts";
 import { setCompletionDatasets } from "./monaco.ts";
@@ -180,6 +181,30 @@ function Workspace({ session }: { session: Session }) {
     setNote(`Inserted ${INSERT_LABELS[kind].toLowerCase()}`);
   }
 
+  // Everything removable, read leniently so the menu works while the definition has errors elsewhere.
+  const removable = useMemo(() => {
+    try {
+      return listRemovable(JSON.parse(text));
+    } catch {
+      return [];
+    }
+  }, [text]);
+
+  function remove(index: number) {
+    const item = removable[index];
+    if (!item) return;
+    let doc: Record<string, unknown>;
+    try {
+      doc = JSON.parse(text);
+    } catch {
+      return setNote("Fix the JSON before removing.");
+    }
+    const result = removeItem(doc, item.target);
+    if (!result) return setNote("That item no longer exists.");
+    setText(JSON.stringify(result.doc, null, 2));
+    setNote(`Removed ${result.removed}${result.dangling.length ? `; still used by ${result.dangling.join(", ")}` : ""}. Ctrl+Z undoes it.`);
+  }
+
   const loadList = useCallback(async () => {
     const { data } = await supabase.from("report_definitions").select("id,name,updated_at").order("updated_at", { ascending: false });
     setSaved((data as Saved[] | null) ?? []);
@@ -230,6 +255,22 @@ function Workspace({ session }: { session: Session }) {
           <optgroup label="Structure">
             {(["band", "dataset", "param"] as const).map((k) => <option key={k} value={k}>{INSERT_LABELS[k]}</option>)}
           </optgroup>
+        </select>
+        <select
+          value=""
+          onChange={(e) => e.target.value !== "" && remove(Number(e.target.value))}
+          disabled={removable.length === 0}
+          aria-label="Remove"
+        >
+          <option value="">Remove…</option>
+          {(["Datasets", "Params", "Bands", "Blocks"] as RemoveGroup[]).map((group) => {
+            const items = removable.map((item, index) => ({ item, index })).filter(({ item }) => item.group === group);
+            return items.length ? (
+              <optgroup key={group} label={group}>
+                {items.map(({ item, index }) => <option key={index} value={index}>{item.label}</option>)}
+              </optgroup>
+            ) : null;
+          })}
         </select>
         <button className="secondary" onClick={() => editorRef.current?.getAction("editor.action.formatDocument")?.run()}>Format</button>
         <span className="spacer" />
