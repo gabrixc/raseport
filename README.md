@@ -8,7 +8,7 @@ packages/schema          Zod schema for report definitions (bands -> 12-col rows
 packages/render-core     definition + data -> Typst source (pure, tested)
 apps/web                 Dev editor: React + Vite+, Monaco with the JSON Schema, live PDF preview
 apps/render-service      Hono service: JWT passthrough (RLS), RPC fetch, native `typst compile`
-supabase/migrations      report_definitions table (RLS), demo sales table, report_sales_by_region RPC
+supabase/migrations      report_definitions table (RLS), demo sales table, report_sales_by_region RPC, report_catalog()
 examples/                sample definition
 deploy/                  Cloud Run deploy script
 docs/                    spike notes (why a container) and deploy guide (docs/deploy.md)
@@ -30,6 +30,25 @@ docker run --network host -e SUPABASE_URL=http://127.0.0.1:55321 \
 
 `POST /render` with `Authorization: Bearer <user JWT>` and `{ "reportId": "...", "params": { "month": "2026-01-01" } }`
 (or an inline `definition` when `ALLOW_INLINE_DEFINITION=true`, for the dev editor preview).
+
+## Designer (drag and drop, for non-technical authors)
+
+Switch **Design | JSON** in the editor header. Both views edit the same document, so changes show up in both,
+and Ctrl+Z / Ctrl+Shift+Z (or the Undo / Redo buttons) step through one shared history.
+
+- **Palette** (Text, KPI, Chart, Table, Divider, Space, Page break, + Section): drag a block onto the page, or click to add it at the end.
+  Drop on a gap between rows for a new row, on a cell's left or right edge to place blocks side by side, or on the top or bottom of
+  a block to insert before or after it in that column. A drop away from the page does nothing.
+- **Move** a block by its tag (top-left on hover) and a row by its ⋮⋮ tab. Drag the boundary between two columns to resize them.
+  The inspector also has move up / down buttons, and Delete, Ctrl+D (duplicate) and Esc work on the selection.
+- **Canvas** draws the real data with the same formatting, aggregation and chart code as the PDF, so what you see is what prints.
+- **Inspector** (below the canvas) has a plain-language form for whatever is selected. Nothing to select shows the report settings:
+  data sources and parameters first, then page, colors, language and currency.
+- **Data sources** are picked by name. The list comes from the database's `report_catalog()`, which lists every `report_*` function
+  with its arguments; pick one and the parameters it needs are created and mapped for you. Give a function a friendly name with
+  `comment on function report_x(...) is 'Sales by region for a month';`.
+- New tables, charts and KPIs start with real columns (a chart picks a category with few distinct values).
+- **New** starts a blank report.
 
 ## Dev editor
 

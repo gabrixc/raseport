@@ -22,13 +22,16 @@ function Chip({ item, onAdd }: { item: (typeof PALETTE)[number]; onAdd: (t: Bloc
 }
 
 /** Things you can drag onto the page. Clicking adds one at the end, for keyboard and touch users. */
-export function Palette({ onAdd, onAddSection }: { onAdd: (t: BlockKind) => void; onAddSection: () => void }) {
+export function Palette({ onAdd, onAddSection, onUndo, onRedo }: { onAdd: (t: BlockKind) => void; onAddSection: () => void; onUndo: () => void; onRedo: () => void }) {
   return (
     <div className="d-palette" role="toolbar" aria-label="Add to the report">
       <span className="d-palette-title">Add</span>
       {PALETTE.map((item) => <Chip key={item.type} item={item} onAdd={onAdd} />)}
       <span className="d-palette-sep" />
       <button type="button" className="d-chip-btn d-chip-plain" onClick={onAddSection} title="Add an empty section below the others">+ Section</button>
+      <span className="spacer" />
+      <button type="button" className="d-chip-btn d-chip-plain" onClick={onUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+      <button type="button" className="d-chip-btn d-chip-plain" onClick={onRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
     </div>
   );
 }

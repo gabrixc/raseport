@@ -125,3 +125,13 @@ button.d-section-label:hover { color: var(--accent); }
 .d-row:hover .d-resize::after, .d-resize:hover::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
 .d-resize:hover::after { background: var(--accent); }
 .designer[data-dragging="true"] .d-block { outline: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent); }
+
+.i-source { padding-bottom: 10px; }
+.i-args { display: grid; gap: 4px; padding-left: 4px; }
+.i-arg { align-items: center; }
+.i-arg-name { flex: 0 0 8.5rem; font: 12px ui-monospace, monospace; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.i-warn { color: var(--err); }
+.i-hint button.link { all: unset; cursor: pointer; text-decoration: underline; color: var(--accent); }
+.i-field input[aria-invalid="true"], .i-row-line input[aria-invalid="true"] { border-color: var(--err); }
+.i-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 14px; }
+.d-palette .spacer { flex: 1; }

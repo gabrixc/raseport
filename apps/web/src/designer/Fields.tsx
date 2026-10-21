@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { Json } from "./model.ts";
 
@@ -77,6 +78,8 @@ export function Segmented({ value, onChange, options }: { value: unknown; onChan
 export interface ColumnOption {
   path: string;
   type: string;
+  /** how many different values the loaded rows have; used to pick a sensible chart category */
+  distinct?: number;
 }
 
 /** Pick a column of the chosen data source (nested jsonb paths included); free text when none are known yet. */
@@ -100,5 +103,29 @@ export function Group({ title, children, action }: { title: string; children: Re
       {action && <div className="i-group-action">{action}</div>}
       {children}
     </fieldset>
+  );
+}
+
+/** A text input that only commits on blur or Enter, so half-typed values (a rename, say) never reach the document. */
+export function CommitInput({ value, onCommit, placeholder, invalid }: { value: string; onCommit: (v: string) => void; placeholder?: string; invalid?: boolean }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const done = () => draft !== value && onCommit(draft);
+  return (
+    <input
+      type="text"
+      value={draft}
+      placeholder={placeholder}
+      aria-invalid={invalid || undefined}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={done}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setDraft(value);
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
   );
 }

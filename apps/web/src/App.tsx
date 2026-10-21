@@ -7,6 +7,7 @@ import { INSERT_LABELS, insertItem, type InsertKind } from "./insert.ts";
 import { Designer } from "./designer/Designer.tsx";
 import { Login } from "./Login.tsx";
 import { ModeSwitch, readMode, writeMode, type EditorMode } from "./ModeSwitch.tsx";
+import { newReportText } from "./templates.ts";
 import { listRemovable, removeItem, type RemoveGroup } from "./remove.ts";
 import { check, lenientParams } from "./check.ts";
 import { locateProblem } from "./locate.ts";
@@ -177,6 +178,15 @@ function Workspace({ session }: { session: Session }) {
     };
   }, [text]);
 
+  /** Start a blank report (asking first, since the current one is replaced in the editor). */
+  function startNew() {
+    if (text.trim() !== newReportText().trim() && !window.confirm("Start a new blank report? The report in the editor is replaced (save it first if you want to keep it). Ctrl+Z can bring it back.")) return;
+    setText(newReportText());
+    setCurrentId(null);
+    setParams({});
+    setNote("Started a new report");
+  }
+
   function insert(kind: InsertKind) {
     let doc: Record<string, unknown>;
     try {
@@ -254,6 +264,7 @@ function Workspace({ session }: { session: Session }) {
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
+        <button className="secondary" onClick={startNew} title="Start a blank report">New</button>
         <button onClick={save} disabled={!def}>{currentId ? "Save" : "Save as new"}</button>
         {mode === "json" && <>
         <select value="" onChange={(e) => e.target.value && insert(e.target.value as InsertKind)} aria-label="Insert">
@@ -343,6 +354,8 @@ function Workspace({ session }: { session: Session }) {
               dataLoading={dataLoading}
               params={effectiveParams}
               problems={problems}
+              onUndo={() => editorRef.current?.trigger("designer", "undo", null)}
+              onRedo={() => editorRef.current?.trigger("designer", "redo", null)}
               onSwitchToJson={() => setMode("json")}
               onShowProblem={(p) => {
                 setMode("json");

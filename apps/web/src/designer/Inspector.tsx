@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { removeItem } from "../remove.ts";
 import { AGGREGATES, Check, ColumnPicker, Field, FORMATS, formatName, Group, IconButton, NumberInput, Segmented, Select, TextInput, type ColumnOption } from "./Fields.tsx";
+import { prettify } from "./defaults.ts";
 import { arr, type Json, type Selection } from "./model.ts";
 import { duplicateBlock, duplicateRow, findBlock, findRowPosition, moveBlock, moveRow, removeRow, setCellSpan, setPath, updateNode } from "./ops.ts";
 
@@ -31,12 +32,6 @@ const BAND_TYPES = [
   { value: "summary", label: "Summary (once, at the end)" },
   { value: "noData", label: "Shown only when there is no data" },
 ];
-
-const prettify = (path: string) => {
-  const last = path.split(".").pop() ?? path;
-  const spaced = last.replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-};
 
 function findRowOf(doc: Json, rowId: string): Json | null {
   const rows = [...arr(doc.pageHeader), ...arr(doc.pageFooter), ...arr(doc.body).flatMap((b) => arr(b.rows))];
@@ -257,14 +252,19 @@ function ReportForm({ p }: { p: InspectorProps }) {
   const set = (path: (string | number)[], v: unknown) => p.onCommit(setPath(p.doc, path, v === "" ? undefined : v));
   return (
     <>
-      <Field label="Report name"><TextInput value={p.doc.name} onChange={(v) => set(["name"], v)} /></Field>
-      <Field label="Paper"><Select value={p.doc.page?.size ?? "a4"} onChange={(v) => set(["page", "size"], v)} options={[{ value: "a4", label: "A4" }, { value: "a3", label: "A3" }, { value: "us-letter", label: "US Letter" }]} empty={undefined} /></Field>
-      <Field label="Orientation"><Segmented value={p.doc.page?.orientation ?? "portrait"} onChange={(v) => set(["page", "orientation"], v)} options={[{ value: "portrait", label: "Portrait" }, { value: "landscape", label: "Landscape" }]} /></Field>
-      <Field label="Margin" hint="e.g. 2cm"><TextInput value={p.doc.page?.margin} onChange={(v) => set(["page", "margin"], v)} placeholder="2cm" /></Field>
-      <Field label="Accent color"><input type="color" value={/^#[0-9a-fA-F]{6}$/.test(String(p.doc.theme?.accent)) ? p.doc.theme.accent : "#0b5fff"} onChange={(e) => set(["theme", "accent"], e.target.value)} /></Field>
-      <Field label="Language and number style" hint="e.g. en-US, en-GB, de-DE"><TextInput value={p.doc.locale} onChange={(v) => set(["locale"], v)} placeholder="en-US" /></Field>
-      <Field label="Currency" hint="3-letter code, e.g. USD, EUR"><TextInput value={p.doc.currency} onChange={(v) => set(["currency"], v.toUpperCase().slice(0, 3))} placeholder="USD" /></Field>
+      {/* Where the data comes from is the first thing a new report needs, so it leads. */}
       {p.reportExtras}
+      <Group title="Page and style">
+        <div className="i-fields">
+          <Field label="Report name"><TextInput value={p.doc.name} onChange={(v) => set(["name"], v)} /></Field>
+          <Field label="Paper"><Select value={p.doc.page?.size ?? "a4"} onChange={(v) => set(["page", "size"], v)} options={[{ value: "a4", label: "A4" }, { value: "a3", label: "A3" }, { value: "us-letter", label: "US Letter" }]} empty={undefined} /></Field>
+          <Field label="Orientation"><Segmented value={p.doc.page?.orientation ?? "portrait"} onChange={(v) => set(["page", "orientation"], v)} options={[{ value: "portrait", label: "Portrait" }, { value: "landscape", label: "Landscape" }]} /></Field>
+          <Field label="Margin" hint="e.g. 2cm"><TextInput value={p.doc.page?.margin} onChange={(v) => set(["page", "margin"], v)} placeholder="2cm" /></Field>
+          <Field label="Accent color"><input type="color" value={/^#[0-9a-fA-F]{6}$/.test(String(p.doc.theme?.accent)) ? p.doc.theme.accent : "#0b5fff"} onChange={(e) => set(["theme", "accent"], e.target.value)} /></Field>
+          <Field label="Language and number style" hint="e.g. en-US, en-GB, de-DE"><TextInput value={p.doc.locale} onChange={(v) => set(["locale"], v)} placeholder="en-US" /></Field>
+          <Field label="Currency" hint="3-letter code, e.g. USD, EUR"><TextInput value={p.doc.currency} onChange={(v) => set(["currency"], v.toUpperCase().slice(0, 3))} placeholder="USD" /></Field>
+        </div>
+      </Group>
     </>
   );
 }
