@@ -4,6 +4,8 @@ import type { DatasetInfo } from "../render.ts";
 /** Everything the preview window needs to draw the PDF side. */
 export interface ViewerState {
   pdf: Blob | null;
+  /** which render the PDF is; a copy of the same render keeps its id, so the viewer need not reload it */
+  pdfId: number;
   ms: number | null;
   bytes: number;
   status: "idle" | "rendering";

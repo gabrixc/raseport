@@ -171,7 +171,7 @@ function Workspace({ session }: { session: Session }) {
   };
 
   // ---- the preview window ------------------------------------------------------------------------
-  const viewerState = (): ViewerState => ({ pdf: result?.blob ?? null, ms: result?.ms ?? null, bytes: result?.bytes ?? 0, status, error: renderError, missing });
+  const viewerState = (): ViewerState => ({ pdf: result?.blob ?? null, pdfId: result?.id ?? 0, ms: result?.ms ?? null, bytes: result?.bytes ?? 0, status, error: renderError, missing });
   const viewerData = (): ViewerData => ({ data: missing.length ? null : data, loading: dataLoading, error: dataError });
 
   const popout = usePopout((m: ToMain) => {

@@ -2,6 +2,8 @@ import type { Problem } from "./problems.ts";
 import { RENDER_URL } from "./supabase.ts";
 
 export interface RenderResult {
+  /** counts up with every render */
+  id: number;
   url: string;
   /** the PDF itself, so it can be handed to another window */
   blob: Blob;
@@ -38,6 +40,8 @@ async function toRenderError(res: Response, fallback: string): Promise<RenderErr
   return new RenderError(message, err.detail, problems);
 }
 
+let renderCount = 0;
+
 export async function renderPdf(
   body: { definition?: unknown; reportId?: string; params: Record<string, unknown> },
   token: string,
@@ -51,7 +55,7 @@ export async function renderPdf(
   });
   if (!res.ok) throw await toRenderError(res, "Render failed");
   const blob = await res.blob();
-  return { url: URL.createObjectURL(blob), blob, ms: Number(res.headers.get("x-render-ms")) || null, bytes: blob.size };
+  return { id: ++renderCount, url: URL.createObjectURL(blob), blob, ms: Number(res.headers.get("x-render-ms")) || null, bytes: blob.size };
 }
 
 export interface DatasetInfo {

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Problem } from "../problems.ts";
 import { PreviewPane, type PreviewTab } from "./PreviewPane.tsx";
+import { createPdfSlot } from "./pdfSlot.ts";
 import { channelName, isToViewer, type ToMain, type ViewerData, type ViewerState } from "./protocol.ts";
 
 const EMPTY_DATA: ViewerData = { data: null, loading: false, error: null };
@@ -12,6 +13,8 @@ export function PopoutViewer({ sid }: { sid: string }) {
   const [tab, setTab] = useState<PreviewTab>("preview");
   const [connected, setConnected] = useState(false);
   const channel = useRef<BroadcastChannel | null>(null);
+  const slot = useRef(createPdfSlot());
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const send = (m: ToMain) => channel.current?.postMessage(m);
 
@@ -19,18 +22,28 @@ export function PopoutViewer({ sid }: { sid: string }) {
     document.title = "Report preview";
     const ch = new BroadcastChannel(channelName(sid));
     channel.current = ch;
+    let connectedNow = false;
     ch.onmessage = (e: MessageEvent) => {
       if (!isToViewer(e.data)) return;
       const m = e.data;
       if (m.t === "close") return window.close();
-      if (m.t === "mainClosed") return setConnected(false);
+      if (m.t === "mainClosed") {
+        connectedNow = false;
+        return setConnected(false);
+      }
+      connectedNow = true;
       setConnected(true);
-      if (m.t === "state") setState(m.state);
+      if (m.t === "state") {
+        setState(m.state);
+        setPdfUrl(slot.current.set(m.state.pdfId, m.state.pdf)); // a new URL only for a new render
+      }
       if (m.t === "data") setData(m.data);
     };
     ch.postMessage({ t: "hello" } satisfies ToMain);
-    // Keep asking until the editor answers (it may still be loading, or have been reloaded).
-    const retry = setInterval(() => ch.postMessage({ t: "hello" } satisfies ToMain), 2000);
+    // Ask again only while the editor has not answered (it may still be loading, or have been reloaded).
+    const retry = setInterval(() => {
+      if (!connectedNow) ch.postMessage({ t: "hello" } satisfies ToMain);
+    }, 2000);
     const bye = () => ch.postMessage({ t: "closed" } satisfies ToMain);
     window.addEventListener("pagehide", bye);
     return () => {
@@ -40,9 +53,8 @@ export function PopoutViewer({ sid }: { sid: string }) {
     };
   }, [sid]);
 
-  // Each PDF arrives as a Blob; give it a URL for the iframe and free the previous one.
-  const pdfUrl = useMemo(() => (state?.pdf ? URL.createObjectURL(state.pdf) : null), [state?.pdf]);
-  useEffect(() => () => void (pdfUrl && URL.revokeObjectURL(pdfUrl)), [pdfUrl]);
+  // Free the PDF URL when the window goes away.
+  useEffect(() => () => slot.current.dispose(), []);
 
   const jump = (problem: Problem) => send({ t: "jump", problem });
 
