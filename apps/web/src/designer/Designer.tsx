@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProblemList } from "../ProblemList.tsx";
 import type { Problem } from "../problems.ts";
 import type { DatasetInfo } from "../render.ts";
+import { removeItem } from "../remove.ts";
 import { Canvas } from "./Canvas.tsx";
+import type { ColumnOption } from "./Fields.tsx";
+import { Inspector } from "./Inspector.tsx";
 import { arr, drawContext, type Json, type Selection } from "./model.ts";
+import { duplicateBlock, duplicateRow, removeRow } from "./ops.ts";
 import "./designer.css";
 
 interface DesignerProps {
@@ -56,8 +60,52 @@ export function Designer({ text, onChange, data, dataLoading, params, problems, 
   }, [doc, selection]);
 
   // Edits go through the same text the JSON editor shows, so both views always agree.
-  const commit = useCallback((next: Json | null) => next && onChange(JSON.stringify(next, null, 2)), [onChange]);
-  void commit;
+  const commit = useCallback(
+    (next: Json | null, select?: Selection) => {
+      if (!next) return;
+      onChange(JSON.stringify(next, null, 2));
+      if (select) setSelection(select);
+    },
+    [onChange],
+  );
+
+  const datasetIds = useMemo(() => arr(doc?.datasets).map((d) => String(d.id)), [doc]);
+  const paramNames = useMemo(() => arr(doc?.params).map((x) => String(x.name)), [doc]);
+
+  /** Columns of a data source: the real ones once data is loaded, otherwise whatever the dataset declares. */
+  const columnsFor = useCallback(
+    (dataset?: string): ColumnOption[] => {
+      if (!dataset) return [];
+      const live = data?.find((d) => d.id === dataset)?.columns;
+      if (live?.length) return live.map((c) => ({ path: c.path, type: c.type }));
+      const declared = arr(doc?.datasets).find((d) => d.id === dataset)?.columns;
+      return declared && typeof declared === "object" ? Object.entries(declared as Record<string, string>).map(([path, type]) => ({ path, type })) : [];
+    },
+    [data, doc],
+  );
+
+  // Delete, Ctrl+D and Esc, unless the user is typing in a field.
+  useEffect(() => {
+    if (!doc) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest("input, textarea, select, [contenteditable=true], .monaco-editor") || t.isContentEditable)) return;
+      if (e.key === "Escape") return setSelection({ kind: "report" });
+      if ((e.key === "Delete" || e.key === "Backspace") && selection.kind === "block") {
+        e.preventDefault();
+        commit(removeItem(doc, { kind: "block", id: selection.id })?.doc ?? null, { kind: "report" });
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selection.kind === "row") {
+        e.preventDefault();
+        commit(removeRow(doc, selection.id), { kind: "report" });
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d" && (selection.kind === "block" || selection.kind === "row")) {
+        e.preventDefault();
+        const r = selection.kind === "block" ? duplicateBlock(doc, selection.id) : duplicateRow(doc, selection.id);
+        if (r) commit(r.doc, { kind: selection.kind, id: r.newId });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [doc, selection, commit]);
 
   if (!doc || !ctx) {
     return (
@@ -75,6 +123,7 @@ export function Designer({ text, onChange, data, dataLoading, params, problems, 
         {dataLoading && !data && <p className="note">Loading data…</p>}
         <Canvas doc={doc} ctx={ctx} selection={selection} onSelect={setSelection} />
       </div>
+      <Inspector doc={doc} selection={selection} datasetIds={datasetIds} paramNames={paramNames} columnsFor={columnsFor} onCommit={commit} />
       {problems.length > 0 && (
         <div className="problems">
           <p className="note warn">{problems.length} problem{problems.length > 1 ? "s" : ""} — click one to fix it in JSON mode</p>
